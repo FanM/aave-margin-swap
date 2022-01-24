@@ -6,13 +6,13 @@ From Aave protocol, every debt position needs to maintain its **Health Factor** 
 
 <img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{R_{liq}^{A}\cdot&space;A}{D_{exist}}\geq 1\textbf{ (1)}" title="Health factor" />
 
-<br> Therefore, if we'd like to borrow _L_ amount more,
+<br> Therefore, if we'd like to borrow _L_ amount, the following must be satisfied:
 
-<img src="https://latex.codecogs.com/svg.latex?\ R_{collat}^{A}\cdot&space;A-L-D_{exist}\geq 0,\left\{0\leq&space;R_{collat}^{A}\leq&space;R_{liq}^{A}\right\}" title="Single token maximum borrow" />
+<img src="https://latex.codecogs.com/svg.latex?\ R_{liq}^{A}\cdot&space;A-L-D_{exist}\geq 0" title="Single token maximum borrow" />
 
 <br>Or,
 
-<img src="https://latex.codecogs.com/svg.latex?L\leq R_{collat}^{A}\cdot&space;A-D_{exist},\left\{0\leq&space;R_{collat}^{A}\leq&space;R_{liq}^{A}\right\}\textbf{ (2)}" title="Single token maximum borrow" />
+<img src="https://latex.codecogs.com/svg.latex?L= R_{collat}^{A}\cdot&space;A-D_{exist},\left\{0\leq&space;R_{collat}^{A}\leq&space;R_{liq}^{A}\right\}\textbf{ (2)}" title="Single token maximum borrow" />
 
 <br> max case
 
@@ -20,79 +20,77 @@ From Aave protocol, every debt position needs to maintain its **Health Factor** 
 
 ##### Borrow with depositing back
 
-<img src="https://latex.codecogs.com/svg.latex?R_{collat}^{A}\cdot A+R_{collat}^{L}\cdot L-L-D_{exist}\geq&space;0,\left\{0\leq&space;R_{collat}^{A,L}\leq&space;R_{liq}^{A,L}\right\}" title="borrow with deposit" />
+<img src="https://latex.codecogs.com/svg.latex?R_{liq}^{A}\cdot A+R_{liq}^{L}\cdot L-L-D_{exist}\geq&space;0" title="borrow with deposit" />
 
 <br>Or,
 
-<img src="https://latex.codecogs.com/svg.latex?L\leq\frac{R_{collat}^{A}\cdot A-D_{exist}}{1-R_{collat}^{L}}, \left\{0\leq&space;R_{collat}^{A,L}\leq&space;R_{liq}^{A,L}\right\}" title="L_{max}=R_{liq}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?L=\frac{R_{collat}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}, \left\{0\leq&space;R_{collat}^{A}\leq&space;R_{liq}^{A}\right\}\textbf{ (4)}" title="L_{max}=R_{liq}\cdot A" />
 
 <br> a max case:
 
-<img src="https://latex.codecogs.com/svg.latex?L_{max}=\frac{R_{liq}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}\textbf{ (4)}" title="L_{max}=R_{liq}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?L_{max}=\frac{R_{liq}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}" title="L_{max}=R_{liq}\cdot A" />
 
 <br>Based on Aave's borrow constraints, in order to borrow the amount equal to **(4)**, the collateral in **(3)** must be
 
-<img src="https://latex.codecogs.com/svg.latex?R_{liq}^{A}\cdot A'-D_{exist}=\frac{R_{liq}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}" title="L_{max}=R_{liq}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?R_{liq}^{A}\cdot A'-D_{exist}=\frac{R_{collat}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}" title="L_{max}=R_{liq}\cdot A" />
 
 <br>Let
 
-<img src="https://latex.codecogs.com/svg.latex?S'=R_{liq}^{A}\cdot A' , S=R_{liq}^{A}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?S'=R_{liq}^{A}\cdot A' , S=R_{collat}^{A}\cdot A" />
 
 <br> we can have
 
-<img src="https://latex.codecogs.com/svg.latex?S'=\frac{S-R_{liq}^{L}\cdot D_{exist}}{1-R_{liq}^{L}}\textbf{ (5)}" />
+<img src="https://latex.codecogs.com/svg.latex?S'=\frac{S-R_{liq}^{L}\cdot D_{exist}}{1-R_{liq}^{L}}" />
 
 <br>which means we have to increase our collateral by:
 
-<img src="https://latex.codecogs.com/svg.latex?\Delta=S'-S=(R_{liq}^{A}\cdot A-D_{exist})\cdot \frac{R_{liq}^{L}}{1-R_{liq}^{L}}\textbf{ (6)}" />
+<img src="https://latex.codecogs.com/svg.latex?\Delta=S'-S=(S-D_{exist})\cdot \frac{R_{liq}^{L}}{1-R_{liq}^{L}}\textbf{ (5)}" />
+
+<br> consider in **(4)**:
+<img src="https://latex.codecogs.com/svg.latex?L=\frac{S-D_{exist}}{1-R_{liq}^{L}}" title="L_{max}=R_{liq}\cdot A" />
+<br> So
+
+<img src="https://latex.codecogs.com/svg.latex?\Delta=L\cdot R_{liq}^{L}\textbf{ (6)}" />
 
 #### Multiple token maximum borrow
 
 <br> similar to **(2)**, if borrowing without depositing back, the amount we can get is:
 
-<img src="https://latex.codecogs.com/svg.latex?L\leq \sum_{i=1}^{k}(R_{collat}^{i}\cdot&space;A_{i})-D_{exist},\left\{0\leq&space;R_{collat}^{i}\leq&space;R_{liq}^{i}\right\}\textbf{ (7)}" title="Multi token maximum borrow" />
+<img src="https://latex.codecogs.com/svg.latex?L= \sum_{i=1}^{k}(R_{collat}^{i}\cdot&space;A_{i})-D_{exist},\left\{0\leq&space;R_{collat}^{i}\leq&space;R_{liq}^{i}\right\}\textbf{ (7)}" title="Multi token maximum borrow" />
 
 <br> If we turn the borrowed token into another token (those two tokens could be the same in theory) and deposit it back, the amount we can borrow is:
 
-<img src="https://latex.codecogs.com/svg.latex? \sum_{i=1}^{k}R_{collat}^{i}\cdot&space;A_{i} + R_{collat}^{L}\cdot L \geq L+D_{exist},\left\{0\leq&space;R_{collat}^{i,L}\leq&space;R_{liq}^{i,L}\right\}" title="Multi token maximum borrow" />
-
-<br>Or,
-
-<img src="https://latex.codecogs.com/svg.latex?L\leq \frac{\sum_{i=1}^{k}(R_{collat}^{i}\cdot&space;A_{i})-D_{exist}}{1-R_{collat}^{L}} ,\left\{0\leq&space;R_{collat}^{i,L}\leq&space;R_{liq}^{i,L}\right\}" title="Multi token borrow" />
+<img src="https://latex.codecogs.com/svg.latex?L= \frac{\sum_{i=1}^{k}(R_{collat}^{i}\cdot&space;A_{i})-D_{exist}}{1-R_{collat}^{L}} ,\left\{0\leq&space;R_{collat}^{i,L}\leq&space;R_{liq}^{i,L}\right\}" title="Multi token borrow" />
 
 <br>A max case:
 
 <img src="https://latex.codecogs.com/svg.latex?L_{max}= \frac{\sum_{i=1}^{k}(R_{liq}^{i}\cdot&space;A_{i})-D_{exist}}{1-R_{liq}^{L}}\textbf{ (8)}" title="Multi token maximum borrow" />
 
-<br> Note that the form of **(8)** is similar to **(3)**, so our new delta can be deduced from **(6)**:
+<br> Note that the form of **(8)** is similar to **(3)**, so our new delta can be the same as **(6)**:
 
-<img src="https://latex.codecogs.com/svg.latex?\Delta=(\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})-D_{exist}) \cdot \frac{R_{liq}^{L}}{1-R_{liq}^{L}} \textbf{ (9)}" />
-
-<br> with the extra collateral, the amount we can borrow now is:
-
-<img src="https://latex.codecogs.com/svg.latex?Loan\leq L_{max}\textbf{ (10)}" />
+<img src="https://latex.codecogs.com/svg.latex?\Delta=L\cdot R_{liq}^{L}" />
 
 ##### consider flash loan fees and swap slippage
 
-<br> the amount we need to return is:
+the amount we need to repay flash loan is:
 
-<img src="https://latex.codecogs.com/svg.latex?Return=(1+L_{flash})\cdot&space;\Delta" title="L_{max}=R_{liq}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?fee=L_{flash}\cdot&space;\Delta" title="L_{max}=R_{liq}\cdot A" />
 
-<br> however, after the swap what we left is only:
+<br> however, we need to consider the slippage after the swap as well:
 
-<img src="https://latex.codecogs.com/svg.latex?Return'=(1-L_{slip})\cdot&space;\Delta" title="lost in swap slippage" />
+<img src="https://latex.codecogs.com/svg.latex?Costs_{total}=(\Delta + fee)/(1-L_{slip})" title="lost in swap slippage" />
 
-<br> the fee we have to set aside upfront is:
+<br>If this amount will be paid from our existing assets, in the beginning we need to check:
 
-<img src="https://latex.codecogs.com/svg.latex?fee = Return - Return'=(L_{flash}+L_{slip})\cdot&space;\Delta" title="total fee" />
+<img src="https://latex.codecogs.com/svg.latex?Costs_{total} \leq L_{max}\textbf{ (11)}" title="fee constraints" />
 
-<br>This amount will be deducted from our existing assets. So in the beginning we need to check:
+<br> total fees will be:
 
-<img src="https://latex.codecogs.com/svg.latex?Loan + fee \leq L_{max}\textbf{ (11)}" title="fee constraints" />
+<img src="https://latex.codecogs.com/svg.latex?fee'=(\Delta + fee)/(1-L_{slip}) - \Delta = \frac{L_{flash} + L_{slip}}{1-L_{slip}} \cdot \Delta" title="lost in swap slippage" />
 
 <br> Our health factor after those operations will be:
 
-<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{Asset_{exist}+Asset_{\Delta}-fee' }{Loan+ D_{exist}}=\frac{\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})+R_{liq}^{L}\cdot \Delta-(L_{flash}+L_{slip})\cdot&space;\Delta}{Loan+D_{exist}}\textbf{ (12)}" title="Health factor" />
+<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{Asset_{exist}+Asset_{\Delta}-fee' }{L+ D_{exist}}=\frac{\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})+R_{liq}^{L}\cdot \Delta-(L_{flash}+L_{slip})/(1-L_{slip})\cdot&space;\Delta}{L+D_{exist}}\textbf{ (12)}" title="Health factor" />
 
 ## Deleverage
 

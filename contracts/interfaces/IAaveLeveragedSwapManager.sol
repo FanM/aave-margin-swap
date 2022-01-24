@@ -6,10 +6,12 @@ pragma solidity ^0.8.0;
  */
 interface IAaveLeveragedSwapManager {
   struct TokenInfo {
-    address token;
+    address tokenAddress;
     bool borrowable;
     bool collaterable;
-    uint liquidationRatio;
+    uint liquidationThreshold;
+    uint ltv;
+    uint decimals;
   }
 
   struct Position {
@@ -32,15 +34,15 @@ interface IAaveLeveragedSwapManager {
   /**
    * @dev execute a leveraged swap.
    * @param targetToken The token that will be borrowed
-   * @param targetAmount The amount of the token
+   * @param targetAmount The amount of the token in wei
    * @param pairToken The token that will be swapped to and deposited
    * @param rateMode The interest rate mode of the debt the user wants to repay: 1 for Stable, 2 for Variable
    * @param slippage The max slippage allowed during swap
    */
   function swapPreapprovedAssets(
-    address targetToken,
+    TokenInfo memory targetToken,
     uint targetAmount,
-    address pairToken,
+    TokenInfo memory pairToken,
     uint rateMode,
     uint slippage
   ) external payable;
@@ -48,16 +50,16 @@ interface IAaveLeveragedSwapManager {
   /**
    * @dev deleverage caller's debt position by repaying debt from collaterals
    * @param collaterals The list of collaterals in caller's portfolio
-   * @param collateralAmounts The list of collateral amounts that will be reduced
+   * @param collateralAmounts The list of collateral amounts in wei that will be reduced
    * @param targetToken The token that will be repayed
-   * @param targetAmount The amount of token that will be repayed
+   * @param targetAmount The amount of token in wei that will be repayed
    * @param rateMode The interest rate mode of the debt the user wants to repay: 1 for Stable, 2 for Variable
    * @param slippage The max slippage allowed during swap
    */
   function repayDebt(
     address[] calldata collaterals,
     uint256[] calldata collateralAmounts,
-    address targetToken,
+    TokenInfo memory targetToken,
     uint targetAmount,
     uint rateMode,
     uint slippage

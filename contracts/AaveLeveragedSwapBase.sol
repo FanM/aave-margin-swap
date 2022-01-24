@@ -7,14 +7,16 @@ import "./interfaces/IProtocolDataProvider.sol";
 import "./interfaces/IPriceOracle.sol";
 import "./interfaces/IUniswapV2Router02.sol";
 import "./utils/EnumerableMap.sol";
+import "./utils/PercentageMath.sol";
+import "./utils/WadRayMath.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   using SafeERC20 for IERC20;
-  using SafeMath for uint256;
+  using WadRayMath for uint256;
+  using PercentageMath for uint256;
   using EnumerableMap for EnumerableMap.AddressToUintsMap;
 
   struct FlashLoanVars {
@@ -25,13 +27,36 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     uint feeETH;
     uint slippage;
     uint borrowRateMode;
-    address targetToken;
-    address pairToken; // leverage only
+    TokenInfo targetToken;
+    TokenInfo pairToken; // leverage only
     address user;
   }
 
-  uint public constant ONE_HUNDERED_PERCENT = 10000; // Aave uses 1 to reprecent 0.01%
+  struct SwapVars {
+    uint totalCollateralETH;
+    uint currentLiquidationThreshold;
+    uint loanETH;
+    uint maxLoanETH;
+    uint feeETH;
+    uint existDebtETH;
+    uint flashLoanETH;
+    uint currentHealthFactor;
+  }
+
+  struct RepayVars {
+    uint totalCollateralETH;
+    uint currentLiquidationThreshold;
+    uint totalCollateralReducedETH;
+    uint maxLoanETH;
+    uint feeETH;
+    uint existDebtETH;
+    uint flashLoanETH;
+    uint currentHealthFactor;
+    uint[] reducedCollateralValues;
+  }
+
   uint public constant FLASH_LOAN_FEE_RATE = 9; // 0.09%
+  bytes32 public constant PROTOCOL_DATA_PROVIDER_ID = bytes32(uint(1)) << 248; // 0x01
 
   ILendingPoolAddressesProvider ADDRESSES_PROVIDER;
   ILendingPool LENDING_POOL;
@@ -50,15 +75,13 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     _;
   }
 
-  function initialize(
-    ILendingPoolAddressesProvider _addressProvider,
-    IProtocolDataProvider _dataProvider,
-    IUniswapV2Router02 _sushiRouter
-  ) public {
-    ADDRESSES_PROVIDER = _addressProvider;
-    LENDING_POOL = ILendingPool(_addressProvider.getLendingPool());
-    DATA_PROVIDER = IProtocolDataProvider(_dataProvider);
-    PRICE_ORACLE = IPriceOracleGetter(_addressProvider.getPriceOracle());
+  function initialize(address _addressProvider, address _sushiRouter) internal {
+    ADDRESSES_PROVIDER = ILendingPoolAddressesProvider(_addressProvider);
+    LENDING_POOL = ILendingPool(ADDRESSES_PROVIDER.getLendingPool());
+    DATA_PROVIDER = IProtocolDataProvider(
+      ADDRESSES_PROVIDER.getAddress(PROTOCOL_DATA_PROVIDER_ID)
+    );
+    PRICE_ORACLE = IPriceOracleGetter(ADDRESSES_PROVIDER.getPriceOracle());
     SUSHI_ROUTER = IUniswapV2Router02(_sushiRouter);
   }
 
@@ -103,86 +126,106 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   /**
    * @dev calculate swap variables and do sanity check, the return values can help derive health factor
    */
-  function checkAndCalculateSwapVars()
-    public
-    view
-    returns (
-      uint loanETH,
-      uint maxLoanETH,
-      uint feeETH,
-      uint pairTokenLiqRatio,
-      uint existDebtETH,
-      uint flashLoanETH
-    )
-  {
-    TokenInfo memory pairTokenInfo = _getTokenInfo(vars.pairToken);
+  function checkAndCalculateSwapVars(
+    TokenInfo memory _targetToken,
+    uint _targetTokenAmount,
+    TokenInfo memory _pairToken
+  ) public view returns (SwapVars memory swapVars) {
     // pairToken should be collaterable
-    require(pairTokenInfo.collaterable, "pairToken is not collaterable.");
-    pairTokenLiqRatio = pairTokenInfo.liquidationRatio;
+    require(_pairToken.collaterable, "pairToken is not collaterable.");
 
-    (maxLoanETH, existDebtETH) = _getMaxLoanAndDebt(vars.user);
+    (
+      swapVars.totalCollateralETH,
+      swapVars.maxLoanETH,
+      swapVars.existDebtETH,
+      swapVars.currentLiquidationThreshold,
+      swapVars.currentHealthFactor
+    ) = _getMaxLoanAndDebt(msg.sender);
 
     // targetToken should be borrowable
-    require(
-      _getTokenInfo(vars.targetToken).borrowable,
-      "targetToken is not borrowable."
-    );
+    require(_targetToken.borrowable, "targetToken is not borrowable.");
 
     // calculate the amount in ETH we need to borrow for targetToken
-    loanETH = PRICE_ORACLE.getAssetPrice(vars.targetToken).mul(
-      vars.targetTokenAmount
-    );
+    swapVars.loanETH = PRICE_ORACLE
+      .getAssetPrice(_targetToken.tokenAddress)
+      .wadMul(_targetTokenAmount);
 
-    flashLoanETH = divPct(
-      mulPct(maxLoanETH - existDebtETH, pairTokenLiqRatio),
-      ONE_HUNDERED_PERCENT.sub(pairTokenLiqRatio)
-    );
-    feeETH = mulPct(flashLoanETH, vars.slippage.add(FLASH_LOAN_FEE_RATE));
+    swapVars.flashLoanETH = swapVars.loanETH.percentMul(_pairToken.ltv);
+    swapVars.feeETH = swapVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
   }
 
   function checkAndCalculateRepayVars(
     address[] memory _assets,
-    uint[] memory _amounts
-  )
-    public
-    view
-    returns (
-      uint totalCollateralReducedETH,
-      uint maxLoanETH,
-      uint loanETH,
-      uint existDebtETH,
-      uint feeETH,
-      uint[] memory reducedCollateralValues
-    )
-  {
-    loanETH = _tryGetUserDebtPosition();
-    (maxLoanETH, existDebtETH) = _getMaxLoanAndDebt(vars.user);
+    uint[] memory _amounts,
+    TokenInfo memory _targetToken,
+    uint _targetAmount,
+    uint _rateMode,
+    uint _slippage
+  ) public view returns (RepayVars memory repayVars) {
+    repayVars.flashLoanETH = _tryGetUserDebtPosition(
+      _targetToken,
+      _targetAmount,
+      _rateMode,
+      msg.sender
+    );
+    (
+      repayVars.totalCollateralETH,
+      repayVars.maxLoanETH,
+      repayVars.existDebtETH,
+      repayVars.currentLiquidationThreshold,
+      repayVars.currentHealthFactor
+    ) = _getMaxLoanAndDebt(msg.sender);
 
     require(
       _assets.length == _amounts.length,
       "Each asset must have an amount specified."
     );
-    reducedCollateralValues = new uint[](_assets.length);
+    repayVars.reducedCollateralValues = new uint[](_assets.length);
     // depends on caller to ensure no duplicate entries
     for (uint i = 0; i < _assets.length; i++) {
+      TokenInfo memory tokenInfo = getTokenInfo(_assets[i]);
       (
         uint tokenValueETH,
         bool userUsedAsCollateralEnabled
-      ) = _tryGetUserTokenETH(_assets[i], _amounts[i], vars.user);
+      ) = _tryGetUserTokenETH(tokenInfo, _amounts[i], msg.sender);
       require(
-        userUsedAsCollateralEnabled && _getTokenInfo(_assets[i]).collaterable,
+        userUsedAsCollateralEnabled && tokenInfo.collaterable,
         "Token is not allowed as collateral."
       );
-      reducedCollateralValues[i] = tokenValueETH;
-      totalCollateralReducedETH += tokenValueETH;
+      repayVars.reducedCollateralValues[i] = tokenValueETH;
+      repayVars.totalCollateralReducedETH += tokenValueETH;
     }
-    feeETH =
-      mulPct(totalCollateralReducedETH, vars.slippage) +
-      mulPct(loanETH, FLASH_LOAN_FEE_RATE);
+    repayVars.feeETH =
+      repayVars.totalCollateralReducedETH.percentMul(_slippage) +
+      repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
+  }
+
+  function getTokenInfo(address _token)
+    public
+    view
+    returns (TokenInfo memory tokenInfo)
+  {
+    tokenInfo.tokenAddress = _token;
+    bool isActive;
+    bool isFrozen;
+    (
+      tokenInfo.decimals,
+      tokenInfo.ltv,
+      tokenInfo.liquidationThreshold,
+      ,
+      ,
+      tokenInfo.collaterable,
+      tokenInfo.borrowable,
+      ,
+      isActive,
+      isFrozen
+    ) = DATA_PROVIDER.getReserveConfigurationData(_token);
+    tokenInfo.collaterable = tokenInfo.collaterable && (isActive && !isFrozen);
+    tokenInfo.borrowable = tokenInfo.borrowable && (isActive && !isFrozen);
   }
 
   function _tryGetUserTokenETH(
-    address _token,
+    TokenInfo memory _token,
     uint _amount,
     address _user
   )
@@ -192,68 +235,66 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   {
     uint aTokenBalance;
     (aTokenBalance, , , , , , , , userUsedAsCollateralEnabled) = DATA_PROVIDER
-      .getUserReserveData(_token, _user);
+      .getUserReserveData(_token.tokenAddress, _user);
     require(
       aTokenBalance >= _amount,
       "The specified amount aToken is more than what you have."
     );
-    tokenValueETH = PRICE_ORACLE.getAssetPrice(_token).mul(_amount);
+    tokenValueETH = PRICE_ORACLE.getAssetPrice(_token.tokenAddress).wadMul(
+      _amount
+    );
   }
 
-  function _tryGetUserDebtPosition() private view returns (uint) {
+  function _tryGetUserDebtPosition(
+    TokenInfo memory _targetToken,
+    uint _targetTokenAmount,
+    uint _borrowRateMode,
+    address _user
+  ) private view returns (uint) {
     (, uint stableDebt, uint variableDebt, , , , , , ) = DATA_PROVIDER
-      .getUserReserveData(vars.targetToken, vars.user);
-    if (vars.borrowRateMode == 1) {
+      .getUserReserveData(vars.targetToken.tokenAddress, _user);
+    if (_borrowRateMode == 1) {
       // stable debt
       require(
-        vars.targetTokenAmount <= stableDebt,
+        _targetTokenAmount <= stableDebt,
         "debt amount exceeds the stable debt that needs to repay."
       );
-    } else if (vars.borrowRateMode == 2) {
+    } else if (_borrowRateMode == 2) {
       // variable debt
       require(
-        vars.targetTokenAmount <= variableDebt,
+        _targetTokenAmount <= variableDebt,
         "debt amount exceeds the variable debt that needs to repay."
       );
     } else {
       revert("Invalid borrow rate mode!");
     }
     return
-      PRICE_ORACLE.getAssetPrice(vars.targetToken).mul(vars.targetTokenAmount);
+      PRICE_ORACLE.getAssetPrice(_targetToken.tokenAddress).wadMul(
+        _targetTokenAmount
+      );
   }
 
   function _getMaxLoanAndDebt(address user)
     private
     view
-    returns (uint maxLoan, uint debt)
+    returns (
+      uint totalCollateral,
+      uint maxLoan,
+      uint debt,
+      uint liquidationThreshold,
+      uint healthFactor
+    )
   {
-    (, uint userTotalDebtETH, uint userAvailableBorrowsETH, , , ) = LENDING_POOL
-      .getUserAccountData(user);
-    return (userTotalDebtETH + userAvailableBorrowsETH, userTotalDebtETH);
-  }
-
-  function _getTokenInfo(address token)
-    private
-    view
-    returns (TokenInfo memory tokenInfo)
-  {
-    bool isActive;
-    bool isFrozen;
+    uint userAvailableBorrowsETH;
     (
+      totalCollateral,
+      debt,
+      userAvailableBorrowsETH,
+      liquidationThreshold,
       ,
-      ,
-      tokenInfo.liquidationRatio,
-      ,
-      ,
-      tokenInfo.collaterable,
-      tokenInfo.borrowable,
-      ,
-      isActive,
-      isFrozen
-    ) = DATA_PROVIDER.getReserveConfigurationData(token);
-    require(tokenInfo.liquidationRatio > 0, "Invalid token!");
-    tokenInfo.collaterable = tokenInfo.collaterable && (isActive && !isFrozen);
-    tokenInfo.borrowable = tokenInfo.borrowable && (isActive && !isFrozen);
+      healthFactor
+    ) = LENDING_POOL.getUserAccountData(user);
+    maxLoan = debt + userAvailableBorrowsETH;
   }
 
   function _getSushiSwapTokenPath(address fromToken, address toToken)
@@ -269,54 +310,53 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   }
 
   function transferUserATokenToContract(
-    address _token,
+    TokenInfo memory _token,
     uint _amount,
     address _user
   ) internal {
     // get aToken address
     (address aTokenAddress, , ) = DATA_PROVIDER.getReserveTokensAddresses(
-      _token
+      _token.tokenAddress
     );
     // user must have approved this contract to use their funds in advance
     require(
-      IERC20(aTokenAddress).transferFrom(_user, address(this), _amount),
+      IERC20(aTokenAddress).transferFrom(
+        _user,
+        address(this),
+        _amount.wadToDecimals(_token.decimals) // converts to token's decimals
+      ),
       "User did not approve contract to transfer aToken."
     );
   }
 
-  function convertEthToTokenAmount(uint valueETH, address token)
+  function convertEthToTokenAmount(uint valueETH, TokenInfo memory token)
     internal
     view
     returns (uint)
   {
-    return valueETH.div(PRICE_ORACLE.getAssetPrice(token));
-  }
-
-  function mulPct(uint number, uint pct) internal pure returns (uint) {
-    return number.mul(pct).div(ONE_HUNDERED_PERCENT);
-  }
-
-  function divPct(uint number, uint pct) internal pure returns (uint) {
-    return number.mul(ONE_HUNDERED_PERCENT).div(pct);
+    return valueETH.wadDiv(PRICE_ORACLE.getAssetPrice(token.tokenAddress));
   }
 
   function approveAndSwapExactTokensForTokens(
-    address inToken,
-    uint amountIn,
-    address outToken,
-    uint amountOutMin,
+    TokenInfo memory inToken,
+    uint amountIn, // wad
+    TokenInfo memory outToken,
+    uint amountOutMin, // wad
     address onBehalfOf
-  ) internal returns (uint, uint) {
-    IERC20(inToken).safeApprove(address(SUSHI_ROUTER), amountIn);
+  ) internal returns (uint) {
+    // converts wad to the token units
+    amountIn = amountIn.wadToDecimals(inToken.decimals);
+    amountOutMin = amountOutMin.wadToDecimals(outToken.decimals);
+    IERC20(inToken.tokenAddress).safeApprove(address(SUSHI_ROUTER), amountIn);
 
     uint[] memory amounts = SUSHI_ROUTER.swapExactTokensForTokens(
       amountIn,
       amountOutMin,
-      _getSushiSwapTokenPath(inToken, outToken),
+      _getSushiSwapTokenPath(inToken.tokenAddress, outToken.tokenAddress),
       onBehalfOf,
       block.timestamp
     );
-    return (amounts[0], amounts[1]);
+    return amounts[1].decimalsToWad(outToken.decimals);
   }
 
   function cleanUpAfterSwap() internal {
