@@ -12,7 +12,7 @@ From Aave protocol, every debt position needs to maintain its **Health Factor** 
 
 <br>Or,
 
-<img src="https://latex.codecogs.com/svg.latex?L= R_{collat}^{A}\cdot&space;A-D_{exist},\left\{0\leq&space;R_{collat}^{A}\leq&space;R_{liq}^{A}\right\}\textbf{ (2)}" title="Single token maximum borrow" />
+<img src="https://latex.codecogs.com/svg.latex?L\leq R_{liq}^{A}\cdot&space;A-D_{exist}\textbf{ (2)}" title="Single token maximum borrow" />
 
 <br> max case
 
@@ -20,15 +20,11 @@ From Aave protocol, every debt position needs to maintain its **Health Factor** 
 
 ##### Borrow with depositing back
 
-<img src="https://latex.codecogs.com/svg.latex?R_{liq}^{A}\cdot A+R_{liq}^{L}\cdot L-L-D_{exist}\geq&space;0" title="borrow with deposit" />
+<img src="https://latex.codecogs.com/svg.latex?R_{liq}^{A}\cdot A+R_{liq}^{L}\cdot L'-L-D_{exist}\geq&space;0" title="borrow with deposit" />
 
-<br>Or,
+<br>If someone can lend you _L_ upfront to increase your collateral, then you borrow the same amount from the liquidity pool to pay him back, which means _L'_ = _L_, the max you can end up borrowing is:
 
-<img src="https://latex.codecogs.com/svg.latex?L=\frac{R_{collat}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}, \left\{0\leq&space;R_{collat}^{A}\leq&space;R_{liq}^{A}\right\}\textbf{ (4)}" title="L_{max}=R_{liq}\cdot A" />
-
-<br> a max case:
-
-<img src="https://latex.codecogs.com/svg.latex?L_{max}=\frac{R_{liq}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}" title="L_{max}=R_{liq}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?L_{max}=\frac{R_{liq}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}\textbf{ (4)}" title="L_{max}=R_{liq}\cdot A" />
 
 <br>Based on Aave's borrow constraints, in order to borrow the amount equal to **(4)**, the collateral in **(3)** must be
 
@@ -74,23 +70,30 @@ From Aave protocol, every debt position needs to maintain its **Health Factor** 
 
 the amount we need to repay flash loan is:
 
-<img src="https://latex.codecogs.com/svg.latex?fee=L_{flash}\cdot&space;\Delta" title="L_{max}=R_{liq}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?fee=L_{flash}\cdot&space;L'" title="L_{max}=R_{liq}\cdot A" />
 
 <br> however, we need to consider the slippage after the swap as well:
 
-<img src="https://latex.codecogs.com/svg.latex?Costs_{total}=(\Delta + fee)/(1-L_{slip})" title="lost in swap slippage" />
+<img src="https://latex.codecogs.com/svg.latex?L\cdot(1-L_{slip})=(L' + fee)" title="lost in swap slippage" />
+
+<br> Or,
+<img src="https://latex.codecogs.com/svg.latex?L' = \frac{1-L_{slip}}{1+L_{flash}}\cdot L " title="lost in swap slippage" />
 
 <br>If this amount will be paid from our existing assets, in the beginning we need to check:
 
-<img src="https://latex.codecogs.com/svg.latex?Costs_{total} \leq L_{max}\textbf{ (11)}" title="fee constraints" />
+<img src="https://latex.codecogs.com/svg.latex? \sum_{i=1}^{k}(R_{liq}^{i}\cdot&space;A_{i}) + R_{liq}\cdot L'- L -D_{exist}\geq 0 \textbf{ (7)}" title="Multi token maximum borrow" />
 
-<br> total fees will be:
+<br> Or:
 
-<img src="https://latex.codecogs.com/svg.latex?fee'=(\Delta + fee)/(1-L_{slip}) - \Delta = \frac{L_{flash} + L_{slip}}{1-L_{slip}} \cdot \Delta" title="lost in swap slippage" />
+<img src="https://latex.codecogs.com/svg.latex?L \leq \sum_{i=1}^{k}(R_{liq}^{i}\cdot&space;A_{i})-D_{exist} + R_{liq}\cdot L' \textbf{ (7)}" title="Multi token maximum borrow" />
+
+<br> If fees are considered separately, then
+
+<img src="https://latex.codecogs.com/svg.latex?L' = L\cdot(1-L_{slip})" title="lost in swap slippage" />
 
 <br> Our health factor after those operations will be:
 
-<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{Asset_{exist}+Asset_{\Delta}-fee' }{L+ D_{exist}}=\frac{\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})+R_{liq}^{L}\cdot \Delta-(L_{flash}+L_{slip})/(1-L_{slip})\cdot&space;\Delta}{L+D_{exist}}\textbf{ (12)}" title="Health factor" />
+<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{Asset_{exist}+Asset_{\Delta} }{L+ D_{exist}}=\frac{\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})+R_{liq}^{L}\cdot L'}{L+D_{exist}}\textbf{ (12)}" title="Health factor" />
 
 ## Deleverage
 
@@ -124,8 +127,8 @@ Since Aave protocol doesn't allow contract to withdraw user's collateral to pay 
 
 <br> New assets that can be used as collateral
 
-<img src="https://latex.codecogs.com/svg.latex?Asset_{collat}=\sum_{i=1}^{k}R_{liq}^{i}\cdot(A_{i} -A'_{i})\textbf{ (16)}" />
+<img src="https://latex.codecogs.com/svg.latex?Asset_{collat}=\sum_{i=1}^{k}R_{liq}^{i}\cdot A_{i} -\sum_{i=1}^{m}R_{liq}^{i}\cdot A'_{i}\textbf{ (16)}" />
 
 <br>New health factor:
 
-<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{total}}{Debt}=\frac{\sum_{i=1}^{k}R_{liq}^{i}\cdot(A_{i} -A'_{i})}{D_{exist}-D_{repay}}\textbf{ (17)}" title="Health factor" />
+<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{total}}{Debt}=\frac{\sum_{i=1}^{k}R_{liq}^{i}\cdot A_{i} -\sum_{i=1}^{m}R_{liq}^{i}\cdot A'_{i}}{D_{exist}-D_{repay}}\textbf{ (17)}" title="Health factor" />

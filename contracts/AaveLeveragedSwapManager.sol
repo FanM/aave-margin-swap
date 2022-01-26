@@ -55,6 +55,7 @@ contract AaveLeveragedSwapManager is
   ) external payable override nonReentrant {
     vars.user = msg.sender;
     vars.targetToken = _targetToken;
+    vars.targetTokenAmount = _targetAmount;
     vars.pairToken = _pairToken;
     vars.borrowRateMode = _rateMode;
     vars.slippage = _slippage;
@@ -62,47 +63,32 @@ contract AaveLeveragedSwapManager is
     SwapVars memory swapVars = checkAndCalculateSwapVars(
       _targetToken,
       _targetAmount,
-      _pairToken
+      _pairToken,
+      _slippage,
+      msg.value == 0
     );
 
     uint pairTokenLtv = _pairToken.ltv;
-    uint flashLoanETH = swapVars.flashLoanETH;
     vars.loanETH = swapVars.loanETH;
     vars.feeETH = swapVars.feeETH;
 
+    uint flashLoanETH = swapVars.flashLoanETH;
     // max loanable after depositing back
-    uint maxLoanETH = (swapVars.maxLoanETH - swapVars.existDebtETH).percentDiv(
-      PercentageMath.PERCENTAGE_FACTOR - pairTokenLtv
+    uint maxLoanETH = swapVars.maxLoanETH -
+      swapVars.existDebtETH +
+      flashLoanETH.percentMul(pairTokenLtv);
+    if (msg.value > 0) {
+      // use the native token sent to pay the fees
+      _ensureValueSentCanCoverFees(msg.value);
+    }
+    require(
+      swapVars.loanETH <= maxLoanETH,
+      "The provided collateral is not enough to cover the loan."
     );
-
     // calculate the amount we need to flash loan in pairToken
     vars.pairTokenAmount = convertEthToTokenAmount(
       flashLoanETH,
       vars.pairToken
-    );
-
-    uint loanWithSlippage;
-    if (msg.value > 0) {
-      // use the native token sent to pay the fees
-      _ensureValueSentCanCoverFees(msg.value);
-      loanWithSlippage = vars.loanETH.percentDiv(
-        PercentageMath.PERCENTAGE_FACTOR - _slippage
-      );
-    } else {
-      // use collateral to pay for fees
-      loanWithSlippage = (vars.loanETH + vars.feeETH).percentDiv(
-        PercentageMath.PERCENTAGE_FACTOR - _slippage
-      );
-    }
-    // verify that the total cossts are less than max loanable
-    require(
-      loanWithSlippage <= maxLoanETH,
-      "The provided collateral is not enough to cover loan and/or fees & slippage."
-    );
-
-    vars.targetTokenAmount = convertEthToTokenAmount(
-      loanWithSlippage,
-      vars.targetToken
     );
 
     _doFlashLoan(_pairToken.tokenAddress, vars.pairTokenAmount);
@@ -120,7 +106,7 @@ contract AaveLeveragedSwapManager is
    * @param _slippage The max slippage allowed during swap
    */
   function repayDebt(
-    address[] calldata _collaterals,
+    TokenInfo[] calldata _collaterals,
     uint256[] calldata _collateralAmounts,
     TokenInfo memory _targetToken,
     uint _targetAmount,
@@ -145,10 +131,15 @@ contract AaveLeveragedSwapManager is
       _targetToken,
       _targetAmount,
       _rateMode,
-      _slippage
+      _slippage,
+      msg.value == 0
     );
 
-    uint collateralReducedETH = repayVars.totalCollateralReducedETH;
+    require(
+      repayVars.expectedHealthFactor > WadRayMath.WAD,
+      "Health factor must be above 1"
+    );
+
     uint[] memory reducedCollateralValues = repayVars.reducedCollateralValues;
     vars.feeETH = repayVars.feeETH;
 
@@ -160,7 +151,7 @@ contract AaveLeveragedSwapManager is
         reducedCollateralValues[i]
       ];
       require(
-        assetMap.set(_collaterals[i], values),
+        assetMap.set(_collaterals[i].tokenAddress, values),
         "Duplicate entry is not allowed in the asset list."
       );
     }
@@ -170,17 +161,6 @@ contract AaveLeveragedSwapManager is
       // we need to convert it to WETH and deposit to this contract
       // and the loan is less than max loanable
       _ensureValueSentCanCoverFees(msg.value);
-      require(
-        collateralReducedETH - repayVars.flashLoanETH >= 0,
-        "The reduced collateral is not enough to cover repaid debt."
-      );
-    } else {
-      // user uses collateral to pay for fees, verify that
-      // the difference of reduced collateral and repaid debt can cover the fees.
-      require(
-        collateralReducedETH - repayVars.flashLoanETH >= vars.feeETH,
-        "The reduced collateral is not enough to cover fees."
-      );
     }
 
     _doFlashLoan(_targetToken.tokenAddress, _targetAmount);
@@ -211,7 +191,7 @@ contract AaveLeveragedSwapManager is
         _assets[0] == vars.targetToken.tokenAddress &&
           _amounts[0] == vars.targetTokenAmount
       );
-      return _handleDeleverage(_assets[0], _amounts[0], _premiums[0]);
+      return _handleDeleverage(vars.targetToken, _amounts[0], _premiums[0]);
     }
   }
 
@@ -225,10 +205,8 @@ contract AaveLeveragedSwapManager is
     // factor in the swap slippage and
     // verify that its value is enough to cover the fees
     require(
-      wethAmount >=
-        vars.feeETH.percentDiv(
-          PercentageMath.PERCENTAGE_FACTOR - vars.slippage
-        ),
+      wethAmount.percentMul(PercentageMath.PERCENTAGE_FACTOR - vars.slippage) >=
+        vars.feeETH,
       "The provided WETH is not enough to cover fees."
     );
     // deposit to this contract
@@ -259,18 +237,18 @@ contract AaveLeveragedSwapManager is
   }
 
   function _handleLeverage(
-    TokenInfo memory _asset,
-    uint _amount,
+    TokenInfo memory _pairToken,
+    uint _pairTokenAmount,
     uint _premium
   ) private returns (bool) {
     // deposit the flash loan to increase user's collateral
-    IERC20(_asset.tokenAddress).safeApprove(
+    IERC20(_pairToken.tokenAddress).safeApprove(
       address(LENDING_POOL),
-      _amount.wadToDecimals(_asset.decimals)
+      _pairTokenAmount.wadToDecimals(_pairToken.decimals)
     );
     LENDING_POOL.deposit(
-      _asset.tokenAddress,
-      _amount,
+      _pairToken.tokenAddress,
+      _pairTokenAmount,
       vars.user, /*onBehalfOf*/
       0 /*referralCode*/
     );
@@ -295,7 +273,12 @@ contract AaveLeveragedSwapManager is
         vars.targetToken,
         vars.targetTokenAmount,
         vars.pairToken,
-        convertEthToTokenAmount(vars.loanETH, vars.pairToken),
+        convertEthToTokenAmount(
+          vars.loanETH.percentMul(
+            PercentageMath.PERCENTAGE_FACTOR - vars.slippage
+          ),
+          vars.pairToken
+        ),
         address(this) /*onBehalfOf*/
       );
       // swap wethToken to pay fees
@@ -315,39 +298,51 @@ contract AaveLeveragedSwapManager is
         vars.targetToken,
         vars.targetTokenAmount,
         vars.pairToken,
-        convertEthToTokenAmount(vars.loanETH + vars.feeETH, vars.pairToken),
+        convertEthToTokenAmount(
+          vars.loanETH.percentMul(
+            PercentageMath.PERCENTAGE_FACTOR - vars.slippage
+          ),
+          vars.pairToken
+        ),
         address(this) /*onBehalfOf*/
       );
     }
 
     // The pairToken this contract have so far should be enough to repay the flash loan
-    uint amountOwing = _amount + _premium;
-    uint remainPairTokenAmount = pairTokenAmount - amountOwing;
+    uint amountOwing = _pairTokenAmount + _premium;
+    assert(pairTokenAmount >= amountOwing);
+    uint remainPairTokenAmount;
+    unchecked {
+      remainPairTokenAmount = pairTokenAmount - amountOwing;
+    }
 
-    assert(remainPairTokenAmount >= 0);
     // Approve the LendingPool contract allowance to *pull* the owed amount
-    IERC20(_asset.tokenAddress).safeApprove(
+    IERC20(_pairToken.tokenAddress).safeApprove(
       address(LENDING_POOL),
-      amountOwing.wadToDecimals(_asset.decimals)
+      amountOwing.wadToDecimals(_pairToken.decimals)
     );
 
     // transfer the remaining pairToken to the user's account if there is any
-    IERC20(_asset.tokenAddress).safeTransfer(
+    IERC20(_pairToken.tokenAddress).safeTransfer(
       vars.user,
-      remainPairTokenAmount.wadToDecimals(_asset.decimals)
+      remainPairTokenAmount.wadToDecimals(_pairToken.decimals)
     );
 
     return true;
   }
 
   function _handleDeleverage(
-    address _targetToken,
+    TokenInfo memory _targetToken,
     uint _targetAmount,
     uint _premium
   ) private returns (bool) {
     // repays the user's debt with the flash loaned targetToken
+    IERC20(_targetToken.tokenAddress).safeApprove(
+      address(LENDING_POOL),
+      _targetAmount.wadToDecimals(_targetToken.decimals)
+    );
     LENDING_POOL.repay(
-      _targetToken,
+      _targetToken.tokenAddress,
       _targetAmount,
       vars.borrowRateMode,
       vars.user /*onBehalfOf*/
@@ -401,13 +396,22 @@ contract AaveLeveragedSwapManager is
     }
 
     uint amountOwing = _targetAmount + _premium;
-    uint remainingTargetToken = targetTokenAmountConverted - amountOwing;
-    assert(remainingTargetToken >= 0);
+    assert(targetTokenAmountConverted >= amountOwing);
+    uint remainingTargetToken;
+    unchecked {
+      remainingTargetToken = targetTokenAmountConverted - amountOwing;
+    }
     // Approve the LendingPool contract allowance to *pull* the owed amount
-    IERC20(_targetToken).safeApprove(address(LENDING_POOL), amountOwing);
+    IERC20(_targetToken.tokenAddress).safeApprove(
+      address(LENDING_POOL),
+      amountOwing.wadToDecimals(_targetToken.decimals)
+    );
 
     // transfer the remaining to user if there's any
-    IERC20(_targetToken).safeTransfer(vars.user, remainingTargetToken);
+    IERC20(_targetToken.tokenAddress).safeTransfer(
+      vars.user,
+      remainingTargetToken.wadToDecimals(_targetToken.decimals)
+    );
 
     return true;
   }

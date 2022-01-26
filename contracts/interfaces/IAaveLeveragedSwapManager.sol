@@ -57,7 +57,7 @@ interface IAaveLeveragedSwapManager {
    * @param slippage The max slippage allowed during swap
    */
   function repayDebt(
-    address[] calldata collaterals,
+    TokenInfo[] calldata collaterals,
     uint256[] calldata collateralAmounts,
     TokenInfo memory targetToken,
     uint targetAmount,

@@ -23,7 +23,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     uint targetTokenAmount;
     uint pairTokenAmount; // leverage only
     uint wethTokenAmount;
-    uint loanETH;
+    uint loanETH; // leverage only
     uint feeETH;
     uint slippage;
     uint borrowRateMode;
@@ -33,25 +33,22 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   }
 
   struct SwapVars {
-    uint totalCollateralETH;
-    uint currentLiquidationThreshold;
     uint loanETH;
     uint maxLoanETH;
     uint feeETH;
     uint existDebtETH;
     uint flashLoanETH;
     uint currentHealthFactor;
+    uint expectedHealthFactor;
   }
 
   struct RepayVars {
-    uint totalCollateralETH;
-    uint currentLiquidationThreshold;
-    uint totalCollateralReducedETH;
-    uint maxLoanETH;
+    uint loanETH;
     uint feeETH;
     uint existDebtETH;
     uint flashLoanETH;
     uint currentHealthFactor;
+    uint expectedHealthFactor;
     uint[] reducedCollateralValues;
   }
 
@@ -65,7 +62,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   IUniswapV2Router02 SUSHI_ROUTER;
 
   EnumerableMap.AddressToUintsMap assetMap; // tokens to tokenValueETH map
-  FlashLoanVars vars;
+  FlashLoanVars public vars;
 
   modifier onlyLendingPool() {
     require(
@@ -129,16 +126,19 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   function checkAndCalculateSwapVars(
     TokenInfo memory _targetToken,
     uint _targetTokenAmount,
-    TokenInfo memory _pairToken
+    TokenInfo memory _pairToken,
+    uint _slippage,
+    bool _feePaidByCollateral
   ) public view returns (SwapVars memory swapVars) {
     // pairToken should be collaterable
     require(_pairToken.collaterable, "pairToken is not collaterable.");
-
+    uint totalCollateralETH;
+    uint currentLiquidationThreshold;
     (
-      swapVars.totalCollateralETH,
+      totalCollateralETH,
       swapVars.maxLoanETH,
       swapVars.existDebtETH,
-      swapVars.currentLiquidationThreshold,
+      currentLiquidationThreshold,
       swapVars.currentHealthFactor
     ) = _getMaxLoanAndDebt(msg.sender);
 
@@ -150,17 +150,31 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       .getAssetPrice(_targetToken.tokenAddress)
       .wadMul(_targetTokenAmount);
 
-    swapVars.flashLoanETH = swapVars.loanETH.percentMul(_pairToken.ltv);
+    swapVars.flashLoanETH = swapVars.loanETH.percentMul(
+      PercentageMath.PERCENTAGE_FACTOR - _slippage
+    );
+
+    if (_feePaidByCollateral)
+      swapVars.flashLoanETH = swapVars.flashLoanETH.percentDiv(
+        PercentageMath.PERCENTAGE_FACTOR + FLASH_LOAN_FEE_RATE
+      );
+
     swapVars.feeETH = swapVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
+    uint newCollateral = swapVars.flashLoanETH.percentMul(
+      _pairToken.liquidationThreshold
+    ) + totalCollateralETH.percentMul(currentLiquidationThreshold);
+    uint newDebt = swapVars.existDebtETH + swapVars.loanETH;
+    swapVars.expectedHealthFactor = newCollateral.wadDiv(newDebt);
   }
 
   function checkAndCalculateRepayVars(
-    address[] memory _assets,
+    TokenInfo[] memory _assets,
     uint[] memory _amounts,
     TokenInfo memory _targetToken,
     uint _targetAmount,
     uint _rateMode,
-    uint _slippage
+    uint _slippage,
+    bool _feePaidByCollateral
   ) public view returns (RepayVars memory repayVars) {
     repayVars.flashLoanETH = _tryGetUserDebtPosition(
       _targetToken,
@@ -168,11 +182,13 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       _rateMode,
       msg.sender
     );
+    uint totalCollateralETH;
+    uint currentLiquidationThreshold;
     (
-      repayVars.totalCollateralETH,
-      repayVars.maxLoanETH,
+      totalCollateralETH,
+      ,
       repayVars.existDebtETH,
-      repayVars.currentLiquidationThreshold,
+      currentLiquidationThreshold,
       repayVars.currentHealthFactor
     ) = _getMaxLoanAndDebt(msg.sender);
 
@@ -181,23 +197,48 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       "Each asset must have an amount specified."
     );
     repayVars.reducedCollateralValues = new uint[](_assets.length);
+
+    totalCollateralETH = totalCollateralETH.percentMul(
+      currentLiquidationThreshold
+    );
     // depends on caller to ensure no duplicate entries
+    uint totalCollateralReducedETH;
     for (uint i = 0; i < _assets.length; i++) {
-      TokenInfo memory tokenInfo = getTokenInfo(_assets[i]);
       (
         uint tokenValueETH,
         bool userUsedAsCollateralEnabled
-      ) = _tryGetUserTokenETH(tokenInfo, _amounts[i], msg.sender);
+      ) = _tryGetUserTokenETH(_assets[i], _amounts[i], msg.sender);
       require(
-        userUsedAsCollateralEnabled && tokenInfo.collaterable,
+        userUsedAsCollateralEnabled && _assets[i].collaterable,
         "Token is not allowed as collateral."
       );
       repayVars.reducedCollateralValues[i] = tokenValueETH;
-      repayVars.totalCollateralReducedETH += tokenValueETH;
+      totalCollateralReducedETH += tokenValueETH;
+      totalCollateralETH -= tokenValueETH.percentMul(
+        _assets[i].liquidationThreshold
+      );
     }
-    repayVars.feeETH =
-      repayVars.totalCollateralReducedETH.percentMul(_slippage) +
-      repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
+    repayVars.loanETH = (
+      _feePaidByCollateral
+        ? repayVars.flashLoanETH
+        : repayVars.flashLoanETH + repayVars.feeETH
+    ).percentDiv(PercentageMath.PERCENTAGE_FACTOR - _slippage);
+    require(
+      totalCollateralReducedETH >= repayVars.loanETH,
+      "The reduced collateral is not enough to cover repaid debt and fee."
+    );
+    repayVars.feeETH = repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
+
+    if (repayVars.existDebtETH <= repayVars.flashLoanETH) {
+      // user's debt is cleared
+      repayVars.expectedHealthFactor = type(uint).max;
+    } else {
+      unchecked {
+        repayVars.expectedHealthFactor = totalCollateralETH.wadDiv(
+          repayVars.existDebtETH - repayVars.flashLoanETH
+        );
+      }
+    }
   }
 
   function getTokenInfo(address _token)
@@ -252,7 +293,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     address _user
   ) private view returns (uint) {
     (, uint stableDebt, uint variableDebt, , , , , , ) = DATA_PROVIDER
-      .getUserReserveData(vars.targetToken.tokenAddress, _user);
+      .getUserReserveData(_targetToken.tokenAddress, _user);
     if (_borrowRateMode == 1) {
       // stable debt
       require(
@@ -343,7 +384,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     TokenInfo memory outToken,
     uint amountOutMin, // wad
     address onBehalfOf
-  ) internal returns (uint) {
+  ) internal returns (uint amountOut) {
     // converts wad to the token units
     amountIn = amountIn.wadToDecimals(inToken.decimals);
     amountOutMin = amountOutMin.wadToDecimals(outToken.decimals);
@@ -351,12 +392,12 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
 
     uint[] memory amounts = SUSHI_ROUTER.swapExactTokensForTokens(
       amountIn,
-      amountOutMin,
+      1, //amountOutMin,
       _getSushiSwapTokenPath(inToken.tokenAddress, outToken.tokenAddress),
       onBehalfOf,
       block.timestamp
     );
-    return amounts[1].decimalsToWad(outToken.decimals);
+    amountOut = amounts[1].decimalsToWad(outToken.decimals);
   }
 
   function cleanUpAfterSwap() internal {
