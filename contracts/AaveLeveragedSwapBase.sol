@@ -218,6 +218,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
         _assets[i].liquidationThreshold
       );
     }
+    repayVars.feeETH = repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
     uint totalLoanETH = (
       _feePaidByCollateral
         ? repayVars.flashLoanETH
@@ -227,7 +228,6 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       totalCollateralReducedETH >= totalLoanETH,
       Errors.DELEVERAGE_REDUCED_ASSET_NOT_ENOUGH
     );
-    repayVars.feeETH = repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
 
     if (repayVars.existDebtETH <= repayVars.flashLoanETH) {
       // user's debt is cleared

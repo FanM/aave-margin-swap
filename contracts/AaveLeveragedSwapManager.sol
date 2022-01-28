@@ -159,7 +159,6 @@ contract AaveLeveragedSwapManager is
 
     if (msg.value > 0) {
       // uses the native token sent in to pay the fees
-      // needs to convert it to WETH and deposit to this contract
       _ensureValueSentCanCoverFees(msg.value);
     }
 
@@ -200,7 +199,7 @@ contract AaveLeveragedSwapManager is
   }
 
   function _ensureValueSentCanCoverFees(uint _value) private {
-    // converts the native token to WETH
+    // converts the native token value to ETH
     uint wethAmount = PRICE_ORACLE.getAssetPrice(NATIVE_ETH).wadMul(_value);
     // factors in the swap slippage and
     // verifies that its value is enough to cover the fees
@@ -281,7 +280,7 @@ contract AaveLeveragedSwapManager is
 
     if (vars.feeTokenAmount > 0) {
       // user uses wethToken to cover the fees
-      // swap wethToken to pay fees
+      // swap native eth to pay fees
       pairTokenAmount += swapExactETHForTokens(
         vars.feeTokenAmount,
         vars.pairToken,
@@ -373,7 +372,7 @@ contract AaveLeveragedSwapManager is
     }
 
     if (vars.feeTokenAmount > 0) {
-      // swap wethToken to pay fees
+      // swap native eth to pay fees
       targetTokenAmountConverted += swapExactETHForTokens(
         vars.feeTokenAmount,
         vars.targetToken,

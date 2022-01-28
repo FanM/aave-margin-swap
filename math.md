@@ -1,134 +1,121 @@
-## Leverage
+## Simple Maxium Borrow
 
-#### Single token maximum borrow
+From Aave protocol, every debt position needs to maintain its [health factor](https://docs.aave.com/risk/asset-risk/risk-parameters#health-factor) greater than 1, which means:
 
-From Aave protocol, every debt position needs to maintain its **Health Factor** greater than 1:
+<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{\sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})}{Debt}\geq 1" title="Health factor" />
 
-<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{R_{liq}^{A}\cdot&space;A}{D_{exist}}\geq 1\textbf{ (1)}" title="Health factor" />
+<br>
+<br>
 
-<br> Therefore, if we'd like to borrow _L_ amount, the following must be satisfied:
+<img src="https://latex.codecogs.com/svg.latex?A_{i} , R_{liq}^{i}" title="Health factor" /> are the *i*th asset value in ether and its [liquidation threshold](https://docs.aave.com/risk/asset-risk/risk-parameters#liquidation-threshold) respectively.
 
-<img src="https://latex.codecogs.com/svg.latex?\ R_{liq}^{A}\cdot&space;A-L-D_{exist}\geq 0" title="Single token maximum borrow" />
+Therefore, if we'd like to borrow _L_ in value with some existing debt _D_, the following must be satisfied:
+
+<img src="https://latex.codecogs.com/svg.latex?\ \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}-L\geq 0\textbf{ (1)}" title="Simple maximum borrow" />
 
 <br>Or,
 
-<img src="https://latex.codecogs.com/svg.latex?L\leq R_{liq}^{A}\cdot&space;A-D_{exist}\textbf{ (2)}" title="Single token maximum borrow" />
+<img src="https://latex.codecogs.com/svg.latex?L\leq \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}\textbf{ (2)}" title="Simple maximum borrow constraint" />
 
-<br> max case
+<br> In practice, Aave has another constraint called [_Maximum Loan To Value_](https://docs.aave.com/risk/asset-risk/risk-parameters#loan-to-value) (LTV) on its assets, which is less than the liquidation threshold of that particular asset. This sets some safety buffer to protect the position from being liquidated in case the user borrows so much to drive his HF to 1. So the maximum he can borrow is:
 
-<img src="https://latex.codecogs.com/svg.latex?L_{max}=R_{liq}^{A}\cdot A-D_{exist}\textbf{ (3)}" title="L_{max}=R_{liq}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?L_{max}= \sum_{i=1}^{k}(R_{ltv}^{i}\cdot A_{i})-D_{exist}\textbf{ (3)}" title="Simple maximum borrow constraint" />
 
-##### Borrow with depositing back
+<br>
+<br>
 
-<img src="https://latex.codecogs.com/svg.latex?R_{liq}^{A}\cdot A+R_{liq}^{L}\cdot L'-L-D_{exist}\geq&space;0" title="borrow with deposit" />
+<img src="https://latex.codecogs.com/svg.latex?R_{ltv}^{i}" title="Loan to value" /> is the maximum _loan to value_ of the *i*th asset.
 
-<br>If someone can lend you _L_ upfront to increase your collateral, then you borrow the same amount from the liquidity pool to pay him back, which means _L'_ = _L_, the max you can end up borrowing is:
+## Leverage
 
-<img src="https://latex.codecogs.com/svg.latex?L_{max}=\frac{R_{liq}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}\textbf{ (4)}" title="L_{max}=R_{liq}\cdot A" />
+#### Borrow and Deposit Back
 
-<br>Based on Aave's borrow constraints, in order to borrow the amount equal to **(4)**, the collateral in **(3)** must be
+Sometimes people borrowing an asset just want to engineer some leveraged positions. For instance, they can short an asset by borrowing it, swapping it for a stable coin, then depositing the latter back. (A long position can be created just by swapping the asset pair just mentioned.) Suppose we borrow an asset with value _L_, exchange it to token _t_ with value _L'_ and deposit back. From **(1)**, we must satisfy:
 
-<img src="https://latex.codecogs.com/svg.latex?R_{liq}^{A}\cdot A'-D_{exist}=\frac{R_{collat}^{A}\cdot A-D_{exist}}{1-R_{liq}^{L}}" title="L_{max}=R_{liq}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?\ \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i}) + R_{liq}^{t}\cdot L' -D_{exist}-L\geq 0" title="Maximum borrow by depositing back" />
 
-<br>Let
+<br> Or, in practice:
 
-<img src="https://latex.codecogs.com/svg.latex?S'=R_{liq}^{A}\cdot A' , S=R_{collat}^{A}\cdot A" />
+<img src="https://latex.codecogs.com/svg.latex?\ \sum_{i=1}^{k}(R_{ltv}^{i}\cdot A_{i}) + R_{ltv}^{t}\cdot L' -D_{exist}-L\geq 0\textbf{ (4)}" title="Maximum borrow by depositing back" />
 
-<br> we can have
+<br> If we don't consider the slippage during token swaps, which means _L_ = _L'_, the maximum you can end up borrowing is:
 
-<img src="https://latex.codecogs.com/svg.latex?S'=\frac{S-R_{liq}^{L}\cdot D_{exist}}{1-R_{liq}^{L}}" />
+<img src="https://latex.codecogs.com/svg.latex?L_{max}=\frac{R_{ltv}^{A}\cdot A-D_{exist}}{1-R_{ltv}^{t}}\textbf{ (5)}" title="Maximum borrow by depositing back" />
 
-<br>which means we have to increase our collateral by:
+<br> Compared to **(3)**, suppose
+<img src="https://latex.codecogs.com/svg.latex?R_{ltv}^{t}" title="Loan to value" /> is 80%, with the same amount of collaterals, in theory we can get 5 times of the original borrowing power, which is why we call it a leveraged position.
 
-<img src="https://latex.codecogs.com/svg.latex?\Delta=S'-S=(S-D_{exist})\cdot \frac{R_{liq}^{L}}{1-R_{liq}^{L}}\textbf{ (5)}" />
+However, without increasing our collateral this can only be done by multiple borrow & deposit operations since each time the borrow limit is still enforced by **(3)**, not **(5)**.
 
-<br> consider in **(4)**:
-<img src="https://latex.codecogs.com/svg.latex?L=\frac{S-D_{exist}}{1-R_{liq}^{L}}" title="L_{max}=R_{liq}\cdot A" />
-<br> So
+#### Deposit, then Borrow
 
-<img src="https://latex.codecogs.com/svg.latex?\Delta=L\cdot R_{liq}^{L}\textbf{ (6)}" />
+To achieve the aforementioned in a single operation, we need to reverse our process by acquiring some extra liquidity upfront. If someone can lend you _L_ amount of stable coins to increase your collateral, then you will be able to borrow the same amount of some token from the liquidity pool. You repay that person by swapping your token to the stable coins.
 
-#### Multiple token maximum borrow
+##### Flash Loan
 
-<br> similar to **(2)**, if borrowing without depositing back, the amount we can get is:
+Without asking a friend to do us this favor, we can utilize Aave's [flash loans](https://docs.aave.com/developers/guides/flash-loans) in this situation. It's not free. Consider **(4)**, the fee incurred for _L'_ amount is:
 
-<img src="https://latex.codecogs.com/svg.latex?L= \sum_{i=1}^{k}(R_{collat}^{i}\cdot&space;A_{i})-D_{exist},\left\{0\leq&space;R_{collat}^{i}\leq&space;R_{liq}^{i}\right\}\textbf{ (7)}" title="Multi token maximum borrow" />
+<img src="https://latex.codecogs.com/svg.latex?fee=R_{flash}\cdot&space;L'" title="Flash loan fee" />
 
-<br> If we turn the borrowed token into another token (those two tokens could be the same in theory) and deposit it back, the amount we can borrow is:
+<br>
+<br>
 
-<img src="https://latex.codecogs.com/svg.latex?L= \frac{\sum_{i=1}^{k}(R_{collat}^{i}\cdot&space;A_{i})-D_{exist}}{1-R_{collat}^{L}} ,\left\{0\leq&space;R_{collat}^{i,L}\leq&space;R_{liq}^{i,L}\right\}" title="Multi token borrow" />
+<img src="https://latex.codecogs.com/svg.latex?R_{flash}" title="Flash loan rate" /> is the rate of flash loan (0.09% currently in Aave).
 
-<br>A max case:
+Plus, we need to factor the lost due to the swap slippage in as well.
 
-<img src="https://latex.codecogs.com/svg.latex?L_{max}= \frac{\sum_{i=1}^{k}(R_{liq}^{i}\cdot&space;A_{i})-D_{exist}}{1-R_{liq}^{L}}\textbf{ (8)}" title="Multi token maximum borrow" />
+1. Pay fees using the collateral
 
-<br> Note that the form of **(8)** is similar to **(3)**, so our new delta can be the same as **(6)**:
+  <img src="https://latex.codecogs.com/svg.latex?L\cdot(1-R_{slip})=(L' + fee)" title="lost in swap slippage" />
+  <br>
+  <br> Or,
+  <img src="https://latex.codecogs.com/svg.latex?L' = L \cdot \frac{1-R_{slip}}{1+R_{flash}} " title="lost in swap slippage" />
 
-<img src="https://latex.codecogs.com/svg.latex?\Delta=L\cdot R_{liq}^{L}" />
+2. Pay fees with extra ethers
 
-##### consider flash loan fees and swap slippage
+  <img src="https://latex.codecogs.com/svg.latex?L' = L\cdot(1-R_{slip})" title="lost in swap slippage" />
 
-the amount we need to repay flash loan is:
+In both cases, **(4)** has to be satisfied, or:
 
-<img src="https://latex.codecogs.com/svg.latex?fee=L_{flash}\cdot&space;L'" title="L_{max}=R_{liq}\cdot A" />
-
-<br> however, we need to consider the slippage after the swap as well:
-
-<img src="https://latex.codecogs.com/svg.latex?L\cdot(1-L_{slip})=(L' + fee)" title="lost in swap slippage" />
-
-<br> Or,
-<img src="https://latex.codecogs.com/svg.latex?L' = \frac{1-L_{slip}}{1+L_{flash}}\cdot L " title="lost in swap slippage" />
-
-<br>If this amount will be paid from our existing assets, in the beginning we need to check:
-
-<img src="https://latex.codecogs.com/svg.latex? \sum_{i=1}^{k}(R_{liq}^{i}\cdot&space;A_{i}) + R_{liq}\cdot L'- L -D_{exist}\geq 0 \textbf{ (7)}" title="Multi token maximum borrow" />
-
-<br> Or:
-
-<img src="https://latex.codecogs.com/svg.latex?L \leq \sum_{i=1}^{k}(R_{liq}^{i}\cdot&space;A_{i})-D_{exist} + R_{liq}\cdot L' \textbf{ (7)}" title="Multi token maximum borrow" />
-
-<br> If fees are considered separately, then
-
-<img src="https://latex.codecogs.com/svg.latex?L' = L\cdot(1-L_{slip})" title="lost in swap slippage" />
+<img src="https://latex.codecogs.com/svg.latex?L \leq \sum_{i=1}^{k}(R_{ltv}^{i}\cdot&space;A_{i})-D_{exist} + R_{ltv}^{t}\cdot L' \textbf{ (6)}" title="maximum borrow with depositing back" />
 
 <br> Our health factor after those operations will be:
 
-<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{Asset_{exist}+Asset_{\Delta} }{L+ D_{exist}}=\frac{\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})+R_{liq}^{L}\cdot L'}{L+D_{exist}}\textbf{ (12)}" title="Health factor" />
+<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{Asset_{exist}+Asset_{\Delta} }{L+ D_{exist}}=\frac{\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})+R_{liq}^{L}\cdot L'}{L+D_{exist}}\textbf{ (7)}" title="Health factor" />
 
 ## Deleverage
 
-User specifies the list of collaterals she's willing to swap out. The total amount will be:
+A user can specify the amount of the debt asset she's willing to repay and a list of collaterals to swap out for that asset. The total collateral to be reduced is:
 
-<img src="https://latex.codecogs.com/svg.latex?A'=\sum_{i=1}^{k}A'_{i}\textbf{ (13)}" />
+<img src="https://latex.codecogs.com/svg.latex?A'=\sum_{i=1}^{m}A'_{i}\textbf{ (8)}" />
 
-<br> And the amount of debt token she's willing to repay:
+<br>
+<br>
 
-<img src="https://latex.codecogs.com/svg.latex?D_{repay}" title="fee constraints" />
+<img src="https://latex.codecogs.com/svg.latex?A'_{i}" title="Asset to reduce" /> is the reduced value\_ for the *i*th collateral.
 
-Since Aave protocol doesn't allow contract to withdraw user's collateral to pay down the debt. We still need to resort to flash loan. We first flash-loan _D_ to reduce user's debt, which incurs fee:
+Since Aave protocol doesn't allow a smart contract to withdraw collateral on behalf of a user. We still need to resort to flash loan to pay down the debt. First we flash-loan the same amount of debt token to repay the debt our user wants to reduce, which incurs fee:
 
-<img src="https://latex.codecogs.com/svg.latex?fee=L_{flash}\cdot D_{repay}" title="fee constraints" />
+<img src="https://latex.codecogs.com/svg.latex?fee=R_{flash}\cdot D_{repay}" title="Flash loan fee" />
 
-<br> The amount of collateral after being converted to targetToken to repay flash loan will be:
+<br> Secondly, we swap the reduced collaterals to the debt token to repay the flash loan. Consider the slippage, the amount we got after the swap will be:
 
-<img src="https://latex.codecogs.com/svg.latex?\Delta=(1-L_{slip})\cdot&space;A'\textbf{ (14)}" title="total fee" />
+<img src="https://latex.codecogs.com/svg.latex?\Delta=(1-R_{slip})\cdot&space;A'\textbf{ (9)}" title="Collateral reduced after swap" />
 
-<br> And make sure
+<br> And make sure we verify in either case:
 
-<img src="https://latex.codecogs.com/svg.latex?\Delta\geq D_{repay} + fee " title="total fee" />
+1. Pay fees using the collateral
 
-<br> Or the total fee
+  <img src="https://latex.codecogs.com/svg.latex?\Delta\geq D_{repay} + fee" title="Fee constraint" />
 
-<img src="https://latex.codecogs.com/svg.latex?fee' = A' \cdot L_{slip} + D_{repay}\cdot L_{flash}\leq A' - D_{repay} " title="total fee" />
+2. Pay fees with extra ethers
 
-<br> Our new debt position:
+  <img src="https://latex.codecogs.com/svg.latex?\Delta\geq D_{repay}" title="Fee constraint" />
 
-<img src="https://latex.codecogs.com/svg.latex?Debt=D_{exist}-D_{repay}\textbf{ (15)}" title="total fee" />
+Our new debt position:
 
-<br> New assets that can be used as collateral
-
-<img src="https://latex.codecogs.com/svg.latex?Asset_{collat}=\sum_{i=1}^{k}R_{liq}^{i}\cdot A_{i} -\sum_{i=1}^{m}R_{liq}^{i}\cdot A'_{i}\textbf{ (16)}" />
+<img src="https://latex.codecogs.com/svg.latex?Debt=D_{exist}-D_{repay}\textbf{ (15)}" title="New debt position" />
 
 <br>New health factor:
 
-<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{total}}{Debt}=\frac{\sum_{i=1}^{k}R_{liq}^{i}\cdot A_{i} -\sum_{i=1}^{m}R_{liq}^{i}\cdot A'_{i}}{D_{exist}-D_{repay}}\textbf{ (17)}" title="Health factor" />
+<img src="https://latex.codecogs.com/svg.latex?HF=\frac{Asset_{collat}}{Debt}=\frac{\sum_{i=1}^{k}R_{liq}^{i}\cdot A_{i} -\sum_{i=1}^{m}R_{liq}^{i}\cdot A'_{i}}{D_{exist}-D_{repay}}\textbf{ (17)}" title="Health factor" />
