@@ -2,16 +2,16 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
-import Web3 from "web3";
 
 import {
   LendingPoolAddressesProvider,
+  ProtocalDataProvider,
   SushiswapRouter,
-  WethGateway,
   NativeToken,
   DaiToken,
-  ProtocalDataProvider,
   WethToken,
+  UsdtToken,
+  AaveToken,
 } from "../.env.polygon.json";
 
 import {
@@ -25,8 +25,10 @@ import {
   ILendingPool,
   ILendingPool__factory,
   IERC20__factory,
+  IERC20,
 } from "../typechain";
 
+const WEI = BigInt(1e18);
 const ABS_ERROR_ALLOWED = 1e15; // 0.001
 const ONE_HUNDRED_PERCENT = BigInt(10000); // 100%
 const SLIPPAGE = BigInt(200); // 2%
@@ -43,6 +45,22 @@ type TokenInfo = [string, boolean, boolean, BigNumber, BigNumber, BigNumber] & {
   decimals: BigNumber;
 };
 
+type UserAccountData = [
+  BigNumber,
+  BigNumber,
+  BigNumber,
+  BigNumber,
+  BigNumber,
+  BigNumber
+] & {
+  totalCollateralETH: BigNumber;
+  totalDebtETH: BigNumber;
+  availableBorrowsETH: BigNumber;
+  currentLiquidationThreshold: BigNumber;
+  ltv: BigNumber;
+  healthFactor: BigNumber;
+};
+
 type TokenAddresses = [string, string, string] & {
   aTokenAddress: string;
   stableDebtTokenAddress: string;
@@ -54,10 +72,13 @@ let dataProvider: IProtocolDataProvider;
 let priceOracle: IPriceOracleGetter;
 let lendingPool: ILendingPool;
 let account: Signer;
-let weth: TokenInfo;
-let wethAddrs: TokenAddresses;
-let dai: TokenInfo;
-let daiAddrs: TokenAddresses;
+let targetTokenInfo: TokenInfo;
+let targetTokenAddrs: TokenAddresses;
+let targetToken: IERC20;
+let pairTokenInfo: TokenInfo;
+let pairTokenAddrs: TokenAddresses;
+let pairToken: IERC20;
+let aPairToken: IERC20;
 
 before(async () => {
   const accounts = await ethers.getSigners();
@@ -74,7 +95,6 @@ before(async () => {
   await aaveManager.initialize(
     LendingPoolAddressesProvider,
     SushiswapRouter,
-    WethGateway,
     NativeToken
   );
 
@@ -94,38 +114,74 @@ before(async () => {
     await addressProvider.getPriceOracle(),
     account
   );
-  weth = await aaveManager.getTokenInfo(WethToken);
-  wethAddrs = await dataProvider.getReserveTokensAddresses(WethToken);
-  dai = await aaveManager.getTokenInfo(DaiToken);
-  daiAddrs = await dataProvider.getReserveTokensAddresses(DaiToken);
+  // choose Weth and Dai as our token pair because they both have 18 decimals thus
+  // easier to work with ERC20 APIs
+  targetTokenInfo = await aaveManager.getTokenInfo(WethToken);
+  targetTokenAddrs = await dataProvider.getReserveTokensAddresses(WethToken);
+  targetToken = IERC20__factory.connect(WethToken, account);
+  pairTokenInfo = await aaveManager.getTokenInfo(DaiToken);
+  pairTokenAddrs = await dataProvider.getReserveTokensAddresses(DaiToken);
+  pairToken = IERC20__factory.connect(DaiToken, account);
+  aPairToken = IERC20__factory.connect(pairTokenAddrs.aTokenAddress, account);
 });
 
 describe("AaveLeveragedSwapManager", function () {
-  async function getActualHealthFactor(): Promise<BigNumber> {
-    return (await lendingPool.getUserAccountData(await account.getAddress()))
-      .healthFactor;
+  async function getUserAccountData(): Promise<UserAccountData> {
+    return await lendingPool.getUserAccountData(await account.getAddress());
   }
+  it("Should fail if contract is initialized twice", async function () {
+    await expect(
+      aaveManager.initialize(
+        LendingPoolAddressesProvider,
+        SushiswapRouter,
+        NativeToken
+      )
+    ).to.be.revertedWith("Initializable: contract is already initialized");
+  });
 
   it("Should fail without asset delegation approvement", async function () {
-    expect(
-      await aaveManager.swapPreapprovedAssets(
-        weth,
+    await expect(
+      aaveManager.swapPreapprovedAssets(
+        targetTokenInfo,
         LOAN_WETH_AMOUNT,
-        dai,
+        pairTokenInfo,
         RATE_MODE,
         500
       )
-    ).to.throw(
-      Error,
-      "VM Exception while processing transaction: reverted with reason string '59'"
-    );
+    ).to.be.revertedWith("E2");
+  });
+
+  it("Should fail if the pair token is not collaterable", async function () {
+    const usdtTokenInfo = await aaveManager.getTokenInfo(UsdtToken);
+    await expect(
+      aaveManager.checkAndCalculateSwapVars(
+        targetTokenInfo,
+        LOAN_WETH_AMOUNT,
+        usdtTokenInfo,
+        SLIPPAGE,
+        true
+      )
+    ).to.be.revertedWith("E3");
+  });
+
+  it("Should fail if the target token is not borrowable", async function () {
+    const aaveTokenInfo = await aaveManager.getTokenInfo(AaveToken);
+    await expect(
+      aaveManager.checkAndCalculateSwapVars(
+        aaveTokenInfo,
+        LOAN_WETH_AMOUNT,
+        pairTokenInfo,
+        SLIPPAGE,
+        true
+      )
+    ).to.be.revertedWith("E4");
   });
 
   it("Should succeed swapping assets", async function () {
     const swapVars = await aaveManager.checkAndCalculateSwapVars(
-      weth,
+      targetTokenInfo,
       LOAN_WETH_AMOUNT,
-      dai,
+      pairTokenInfo,
       SLIPPAGE,
       true
     );
@@ -133,47 +189,62 @@ describe("AaveLeveragedSwapManager", function () {
 
     const healthFactor = swapVars.expectedHealthFactor.toBigInt();
 
-    console.debug(`Expected Health Factor: ${healthFactor}`);
-
     let wethVariableDebtToken = IVariableDebtToken__factory.connect(
-      wethAddrs.variableDebtTokenAddress,
+      targetTokenAddrs.variableDebtTokenAddress,
       account
     );
     await wethVariableDebtToken.approveDelegation(
       aaveManager.address,
       LOAN_WETH_AMOUNT
     );
-    const balanceBefore = await account.getBalance();
-    await aaveManager.swapPreapprovedAssets(
-      weth,
+    const tx = await aaveManager.swapPreapprovedAssets(
+      targetTokenInfo,
       LOAN_WETH_AMOUNT,
-      dai,
+      pairTokenInfo,
       RATE_MODE,
       SLIPPAGE
     );
 
-    console.debug(
-      "Gas for swap: ",
-      Web3.utils.fromWei(`${balanceBefore.sub(await account.getBalance())}`)
-    );
-    const actualHealthFactor = await getActualHealthFactor();
+    const recept = await ethers.provider.getTransactionReceipt(tx.hash);
+    console.debug(`Gas used: ${recept.gasUsed}`);
+    const actualHealthFactor = (await getUserAccountData()).healthFactor;
     console.debug(`Actual Health Factor: ${actualHealthFactor}`);
+    // verify the expected heath factor is within the error range
     expect(actualHealthFactor.sub(healthFactor).abs()).to.lt(ABS_ERROR_ALLOWED);
+    // verify vars are cleared
     expect((await aaveManager.vars()).pairTokenAmount).to.eq(0);
+    // verify aaveManager doesn't hold any pair tokens
+    expect(await pairToken.balanceOf(aaveManager.address)).to.eq(0);
   });
 
-  it("Should succeed repaying assets", async function () {
-    const aDaiERCToken = IERC20__factory.connect(
-      daiAddrs.aTokenAddress,
-      account
+  it("Should fail repaying if user did not approve aToken", async function () {
+    let aPairTokenBalance = await aPairToken.balanceOf(
+      await account.getAddress()
     );
-    let aDaiBalance = await aDaiERCToken.balanceOf(await account.getAddress());
-    const assets = [dai];
-    const amounts = [aDaiBalance];
+    const assets = [pairTokenInfo];
+    const amounts = [aPairTokenBalance];
+    await expect(
+      aaveManager.repayDebt(
+        assets,
+        amounts,
+        targetTokenInfo,
+        REPAY_WETH_AMOUNT,
+        RATE_MODE,
+        SLIPPAGE
+      )
+    ).to.be.revertedWith("E11");
+  });
+
+  it("Should succeed repaying partial debt", async function () {
+    let aPairTokenBalance = await aPairToken.balanceOf(
+      await account.getAddress()
+    );
+    const assets = [pairTokenInfo];
+    const amounts = [aPairTokenBalance];
     const repayVars = await aaveManager.checkAndCalculateRepayVars(
       assets,
       amounts,
-      weth,
+      targetTokenInfo,
       REPAY_WETH_AMOUNT,
       RATE_MODE,
       SLIPPAGE,
@@ -181,33 +252,34 @@ describe("AaveLeveragedSwapManager", function () {
     );
     console.debug(repayVars);
     const healthFactor = repayVars.expectedHealthFactor.toBigInt();
-    console.debug(`Expected Health Factor: ${healthFactor}`);
 
-    await aDaiERCToken.approve(aaveManager.address, aDaiBalance);
-    const balanceBefore = await account.getBalance();
-    await aaveManager.repayDebt(
+    await aPairToken.approve(aaveManager.address, aPairTokenBalance);
+    const tx = await aaveManager.repayDebt(
       assets,
       amounts,
-      weth,
+      targetTokenInfo,
       REPAY_WETH_AMOUNT,
       RATE_MODE,
       SLIPPAGE
     );
-    console.debug(
-      "Gas for repay: ",
-      Web3.utils.fromWei(`${balanceBefore.sub(await account.getBalance())}`)
-    );
-    const actualHealthFactor = await getActualHealthFactor();
+
+    const recept = await ethers.provider.getTransactionReceipt(tx.hash);
+    console.debug(`Gas used: ${recept.gasUsed}`);
+    const actualHealthFactor = (await getUserAccountData()).healthFactor;
     console.debug(`Actual Health Factor: ${actualHealthFactor}`);
+    // verify the expected heath factor is within the error range
     expect(actualHealthFactor.sub(healthFactor).abs()).to.lt(ABS_ERROR_ALLOWED);
+    // verify vars are cleared
     expect((await aaveManager.vars()).targetTokenAmount).to.eq(0);
+    // verify aaveManager doesn't hold any target tokens
+    expect(await targetToken.balanceOf(aaveManager.address)).to.eq(0);
   });
 
   it("Should succeed swapping assets with fees sent in", async function () {
     const swapVars = await aaveManager.checkAndCalculateSwapVars(
-      weth,
+      targetTokenInfo,
       LOAN_WETH_AMOUNT,
-      dai,
+      pairTokenInfo,
       SLIPPAGE,
       false // sends fee separately
     );
@@ -215,89 +287,97 @@ describe("AaveLeveragedSwapManager", function () {
 
     const healthFactor = swapVars.expectedHealthFactor.toBigInt();
 
-    console.debug(`Expected Health Factor: ${healthFactor}`);
-
     let wethVariableDebtToken = IVariableDebtToken__factory.connect(
-      wethAddrs.variableDebtTokenAddress,
+      targetTokenAddrs.variableDebtTokenAddress,
       account
     );
     await wethVariableDebtToken.approveDelegation(
       aaveManager.address,
       LOAN_WETH_AMOUNT
     );
-    const feeAmount = swapVars.feeETH.div(
-      await priceOracle.getAssetPrice(NativeToken)
-    );
-    const balanceBefore = await account.getBalance();
-    await aaveManager.swapPreapprovedAssets(
-      weth,
+    const feeAmount =
+      (swapVars.feeETH.toBigInt() * WEI) /
+      (await priceOracle.getAssetPrice(NativeToken)).toBigInt();
+    const tx = await aaveManager.swapPreapprovedAssets(
+      targetTokenInfo,
       LOAN_WETH_AMOUNT,
-      dai,
+      pairTokenInfo,
       RATE_MODE,
       SLIPPAGE,
       {
-        value: feeAmount // consider the slippage
-          .mul(ONE_HUNDRED_PERCENT)
-          .div(ONE_HUNDRED_PERCENT - SLIPPAGE),
+        value:
+          (feeAmount * // consider the slippage
+            ONE_HUNDRED_PERCENT) /
+          (ONE_HUNDRED_PERCENT - SLIPPAGE),
       }
     );
 
-    console.debug(
-      "Gas for swap: ",
-      Web3.utils.fromWei(`${balanceBefore.sub(await account.getBalance())}`)
-    );
-    const actualHealthFactor = await getActualHealthFactor();
+    const recept = await ethers.provider.getTransactionReceipt(tx.hash);
+    console.debug(`Gas used: ${recept.gasUsed}`);
+    const actualHealthFactor = (await getUserAccountData()).healthFactor;
     console.debug(`Actual Health Factor: ${actualHealthFactor}`);
     expect(actualHealthFactor.sub(healthFactor).abs()).to.lt(ABS_ERROR_ALLOWED);
     expect((await aaveManager.vars()).pairTokenAmount).to.eq(0);
   });
 
-  it("Should succeed repaying assets with fees sent in", async function () {
-    const aDaiERCToken = IERC20__factory.connect(
-      daiAddrs.aTokenAddress,
+  it("Should succeed repaying total debt with fees sent in", async function () {
+    const aTargetToken = IERC20__factory.connect(
+      targetTokenAddrs.aTokenAddress,
       account
     );
-    let aDaiBalance = await aDaiERCToken.balanceOf(await account.getAddress());
-    const assets = [dai];
-    const amounts = [aDaiBalance];
+    const aTargetTokenBalance = await aTargetToken.balanceOf(
+      await account.getAddress()
+    );
+
+    const aPairTokenBalance = await aPairToken.balanceOf(
+      await account.getAddress()
+    );
+    const assets = [pairTokenInfo, targetTokenInfo];
+    const amounts = [aPairTokenBalance, aTargetTokenBalance];
+
+    let wethVariableDebtToken = IERC20__factory.connect(
+      targetTokenAddrs.variableDebtTokenAddress,
+      account
+    );
+    const repaidAmount = await wethVariableDebtToken.balanceOf(
+      await account.getAddress()
+    );
     const repayVars = await aaveManager.checkAndCalculateRepayVars(
       assets,
       amounts,
-      weth,
-      REPAY_WETH_AMOUNT,
+      targetTokenInfo,
+      repaidAmount,
       RATE_MODE,
       SLIPPAGE,
       false // sends fee separately
     );
     console.debug(repayVars);
-    const healthFactor = repayVars.expectedHealthFactor.toBigInt();
-    console.debug(`Expected Health Factor: ${healthFactor}`);
 
-    await aDaiERCToken.approve(aaveManager.address, aDaiBalance);
-    const feeAmount = repayVars.feeETH.div(
-      await priceOracle.getAssetPrice(NativeToken)
-    );
-    const balanceBefore = await account.getBalance();
-    await aaveManager.repayDebt(
+    await aPairToken.approve(aaveManager.address, aPairTokenBalance);
+    await aTargetToken.approve(aaveManager.address, aTargetTokenBalance);
+    const feeAmount =
+      (repayVars.feeETH.toBigInt() * WEI) /
+      (await priceOracle.getAssetPrice(NativeToken)).toBigInt();
+    const tx = await aaveManager.repayDebt(
       assets,
       amounts,
-      weth,
-      REPAY_WETH_AMOUNT,
+      targetTokenInfo,
+      repaidAmount,
       RATE_MODE,
       SLIPPAGE,
       {
-        value: feeAmount // consider the slippage
-          .mul(ONE_HUNDRED_PERCENT)
-          .div(ONE_HUNDRED_PERCENT - SLIPPAGE),
+        value:
+          (feeAmount * // consider the slippage
+            ONE_HUNDRED_PERCENT) /
+          (ONE_HUNDRED_PERCENT - SLIPPAGE),
       }
     );
-    console.debug(
-      "Gas for repay: ",
-      Web3.utils.fromWei(`${balanceBefore.sub(await account.getBalance())}`)
-    );
-    const actualHealthFactor = await getActualHealthFactor();
-    console.debug(`Actual Health Factor: ${actualHealthFactor}`);
-    expect(actualHealthFactor.sub(healthFactor).abs()).to.lt(ABS_ERROR_ALLOWED);
+    const recept = await ethers.provider.getTransactionReceipt(tx.hash);
+    console.debug(`Gas used: ${recept.gasUsed}`);
+    const debtAfterRepay = (await getUserAccountData()).totalDebtETH;
+    console.debug(`Debt after repay: ${debtAfterRepay}`);
     expect((await aaveManager.vars()).targetTokenAmount).to.eq(0);
+    // verify aaveManager doesn't hold any target tokens
+    expect(await targetToken.balanceOf(aaveManager.address)).to.eq(0);
   });
 });

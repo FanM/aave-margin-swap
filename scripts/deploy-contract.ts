@@ -9,7 +9,7 @@ import {
   SushiswapRouter,
   WethGateway,
   NativeToken,
-} from "../.env.mumbai.json";
+} from "../.env.polygon.json";
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command

@@ -9,6 +9,7 @@ import "./interfaces/IUniswapV2Router02.sol";
 import "./utils/EnumerableMap.sol";
 import "./utils/PercentageMath.sol";
 import "./utils/WadRayMath.sol";
+import "./utils/Errors.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -22,7 +23,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   struct FlashLoanVars {
     uint targetTokenAmount;
     uint pairTokenAmount; // leverage only
-    uint wethTokenAmount;
+    uint feeTokenAmount;
     uint loanETH; // leverage only
     uint feeETH;
     uint slippage;
@@ -43,7 +44,6 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   }
 
   struct RepayVars {
-    uint loanETH;
     uint feeETH;
     uint existDebtETH;
     uint flashLoanETH;
@@ -60,6 +60,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   IProtocolDataProvider DATA_PROVIDER;
   IPriceOracleGetter PRICE_ORACLE;
   IUniswapV2Router02 SUSHI_ROUTER;
+  address NATIVE_ETH;
 
   EnumerableMap.AddressToUintsMap assetMap; // tokens to tokenValueETH map
   FlashLoanVars public vars;
@@ -67,19 +68,9 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   modifier onlyLendingPool() {
     require(
       msg.sender == address(LENDING_POOL),
-      "Only lending pool can call this function."
+      Errors.CONTRACT_ONLY_CALLED_BY_LENDING_POOL
     );
     _;
-  }
-
-  function initialize(address _addressProvider, address _sushiRouter) internal {
-    ADDRESSES_PROVIDER = ILendingPoolAddressesProvider(_addressProvider);
-    LENDING_POOL = ILendingPool(ADDRESSES_PROVIDER.getLendingPool());
-    DATA_PROVIDER = IProtocolDataProvider(
-      ADDRESSES_PROVIDER.getAddress(PROTOCOL_DATA_PROVIDER_ID)
-    );
-    PRICE_ORACLE = IPriceOracleGetter(ADDRESSES_PROVIDER.getPriceOracle());
-    SUSHI_ROUTER = IUniswapV2Router02(_sushiRouter);
   }
 
   function getAssetPositions()
@@ -121,7 +112,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
   }
 
   /**
-   * @dev calculate swap variables and do sanity check, the return values can help derive health factor
+   * @dev calculate swap variables and do sanity check
    */
   function checkAndCalculateSwapVars(
     TokenInfo memory _targetToken,
@@ -131,7 +122,10 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     bool _feePaidByCollateral
   ) public view returns (SwapVars memory swapVars) {
     // pairToken should be collaterable
-    require(_pairToken.collaterable, "pairToken is not collaterable.");
+    require(
+      _pairToken.collaterable,
+      Errors.LEVERAGE_PAIR_TOKEN_NOT_COLLATERABLE
+    );
     uint totalCollateralETH;
     uint currentLiquidationThreshold;
     (
@@ -143,7 +137,10 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     ) = _getMaxLoanAndDebt(msg.sender);
 
     // targetToken should be borrowable
-    require(_targetToken.borrowable, "targetToken is not borrowable.");
+    require(
+      _targetToken.borrowable,
+      Errors.LEVERAGE_TARGET_TOKEN_NOT_BORROWABLE
+    );
 
     // calculate the amount in ETH we need to borrow for targetToken
     swapVars.loanETH = PRICE_ORACLE
@@ -167,6 +164,9 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     swapVars.expectedHealthFactor = newCollateral.wadDiv(newDebt);
   }
 
+  /**
+   * @dev calculate repay variables and do sanity check
+   */
   function checkAndCalculateRepayVars(
     TokenInfo[] memory _assets,
     uint[] memory _amounts,
@@ -194,7 +194,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
 
     require(
       _assets.length == _amounts.length,
-      "Each asset must have an amount specified."
+      Errors.DELEVERAGE_MISMATCHED_ASSETS_AND_AMOUNTS
     );
     repayVars.reducedCollateralValues = new uint[](_assets.length);
 
@@ -210,7 +210,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       ) = _tryGetUserTokenETH(_assets[i], _amounts[i], msg.sender);
       require(
         userUsedAsCollateralEnabled && _assets[i].collaterable,
-        "Token is not allowed as collateral."
+        Errors.DELEVERAGE_ASSET_TOKEN_NOT_COLLATERABLE
       );
       repayVars.reducedCollateralValues[i] = tokenValueETH;
       totalCollateralReducedETH += tokenValueETH;
@@ -218,14 +218,14 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
         _assets[i].liquidationThreshold
       );
     }
-    repayVars.loanETH = (
+    uint totalLoanETH = (
       _feePaidByCollateral
         ? repayVars.flashLoanETH
         : repayVars.flashLoanETH + repayVars.feeETH
     ).percentDiv(PercentageMath.PERCENTAGE_FACTOR - _slippage);
     require(
-      totalCollateralReducedETH >= repayVars.loanETH,
-      "The reduced collateral is not enough to cover repaid debt and fee."
+      totalCollateralReducedETH >= totalLoanETH,
+      Errors.DELEVERAGE_REDUCED_ASSET_NOT_ENOUGH
     );
     repayVars.feeETH = repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
 
@@ -279,7 +279,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       .getUserReserveData(_token.tokenAddress, _user);
     require(
       aTokenBalance >= _amount,
-      "The specified amount aToken is more than what you have."
+      Errors.DELEVERAGE_ATOKEN_SPECIFIED_EXCEEDS_OWNED
     );
     tokenValueETH = PRICE_ORACLE.getAssetPrice(_token.tokenAddress).wadMul(
       _amount
@@ -298,13 +298,13 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       // stable debt
       require(
         _targetTokenAmount <= stableDebt,
-        "debt amount exceeds the stable debt that needs to repay."
+        Errors.DELEVERAGE_STABLE_DEBT_SPECIFIED_EXCEEDS_OWNED
       );
     } else if (_borrowRateMode == 2) {
       // variable debt
       require(
         _targetTokenAmount <= variableDebt,
-        "debt amount exceeds the variable debt that needs to repay."
+        Errors.DELEVERAGE_VARIABLE_DEBT_SPECIFIED_EXCEEDS_OWNED
       );
     } else {
       revert("Invalid borrow rate mode!");
@@ -360,14 +360,17 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       _token.tokenAddress
     );
     // user must have approved this contract to use their funds in advance
-    require(
+    try
       IERC20(aTokenAddress).transferFrom(
         _user,
         address(this),
         _amount.wadToDecimals(_token.decimals) // converts to token's decimals
-      ),
-      "User did not approve contract to transfer aToken."
-    );
+      )
+    returns (bool) {} catch Error(
+      string memory /*reason*/
+    ) {
+      revert(Errors.DELEVERAGE_USER_DID_NOT_APPROVE_ATOKEN_TRANSFER);
+    }
   }
 
   function convertEthToTokenAmount(uint valueETH, TokenInfo memory token)
@@ -378,26 +381,59 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     return valueETH.wadDiv(PRICE_ORACLE.getAssetPrice(token.tokenAddress));
   }
 
+  function swapExactETHForTokens(
+    uint amountIn, // wad
+    TokenInfo memory outToken,
+    uint amountOutMin, // wad
+    address onBehalfOf
+  ) internal returns (uint) {
+    amountOutMin = amountOutMin.wadToDecimals(outToken.decimals);
+    try
+      SUSHI_ROUTER.swapExactETHForTokens{value: amountIn}(
+        amountOutMin,
+        _getSushiSwapTokenPath(NATIVE_ETH, outToken.tokenAddress),
+        onBehalfOf,
+        block.timestamp
+      )
+    returns (uint[] memory amounts) {
+      return amounts[1].decimalsToWad(outToken.decimals);
+    } catch Error(
+      string memory /*reason*/
+    ) {
+      revert(Errors.OPS_NOT_ABLE_TO_EXCHANGE_BY_SPECIFIED_SLIPPAGE);
+    }
+  }
+
   function approveAndSwapExactTokensForTokens(
     TokenInfo memory inToken,
     uint amountIn, // wad
     TokenInfo memory outToken,
     uint amountOutMin, // wad
     address onBehalfOf
-  ) internal returns (uint amountOut) {
+  ) internal returns (uint) {
+    if (inToken.tokenAddress == outToken.tokenAddress) {
+      return amountIn;
+    }
     // converts wad to the token units
     amountIn = amountIn.wadToDecimals(inToken.decimals);
     amountOutMin = amountOutMin.wadToDecimals(outToken.decimals);
     IERC20(inToken.tokenAddress).safeApprove(address(SUSHI_ROUTER), amountIn);
 
-    uint[] memory amounts = SUSHI_ROUTER.swapExactTokensForTokens(
-      amountIn,
-      1, //amountOutMin,
-      _getSushiSwapTokenPath(inToken.tokenAddress, outToken.tokenAddress),
-      onBehalfOf,
-      block.timestamp
-    );
-    amountOut = amounts[1].decimalsToWad(outToken.decimals);
+    try
+      SUSHI_ROUTER.swapExactTokensForTokens(
+        amountIn,
+        1, //amountOutMin,
+        _getSushiSwapTokenPath(inToken.tokenAddress, outToken.tokenAddress),
+        onBehalfOf,
+        block.timestamp
+      )
+    returns (uint[] memory amounts) {
+      return amounts[1].decimalsToWad(outToken.decimals);
+    } catch Error(
+      string memory /*reason*/
+    ) {
+      revert(Errors.OPS_NOT_ABLE_TO_EXCHANGE_BY_SPECIFIED_SLIPPAGE);
+    }
   }
 
   function cleanUpAfterSwap() internal {

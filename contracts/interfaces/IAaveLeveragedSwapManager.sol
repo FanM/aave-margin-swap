@@ -5,6 +5,44 @@ pragma solidity ^0.8.0;
  * @title The interface for AaveLeveragedSwapManager
  */
 interface IAaveLeveragedSwapManager {
+  /**
+   * @dev emitted after a leveraged swap.
+   * @param targetToken The address of the token that will be borrowed
+   * @param pairToken The address of the token that will be swapped to and deposited
+   * @param user The user address
+   * @param targetAmount The amount of target token in wei
+   * @param borrowRateMode The interest rate mode of the debt the user wants to repay: 1 for Stable, 2 for Variable
+   * @param slippage The max slippage allowed during swap
+   * @param pairAmountReturned The remaining amount of the pair token in wei that will be returned to user
+   */
+  event Leverage(
+    address indexed targetToken,
+    address indexed pairToken,
+    address user,
+    uint targetAmount,
+    uint borrowRateMode,
+    uint slippage,
+    uint pairAmountReturned
+  );
+
+  /**
+   * @dev emitted after a deleveraged swap.
+   * @param targetToken The address of the token that will be repaid
+   * @param user The user address
+   * @param targetAmount The amount of target token in wei
+   * @param borrowRateMode The interest rate mode of the debt the user wants to repay: 1 for Stable, 2 for Variable
+   * @param slippage The max slippage allowed during swap
+   * @param targetAmountReturned The remaining amount of the target token in wei that will be returned to user
+   */
+  event Deleverage(
+    address indexed targetToken,
+    address user,
+    uint targetAmount,
+    uint borrowRateMode,
+    uint slippage,
+    uint targetAmountReturned
+  );
+
   struct TokenInfo {
     address tokenAddress;
     bool borrowable;
