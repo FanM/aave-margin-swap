@@ -4,15 +4,13 @@ From Aave protocol, every debt position needs to maintain its [health factor](ht
 
 <img src="https://render.githubusercontent.com/render/math?math={\Large HF=\frac{Asset_{collat}}{Debt}=\frac{\sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})}{Debt}\geq 1}" title="Health factor" />
 
-<br>
-
 <img src="https://render.githubusercontent.com/render/math?math={\large A_{i} , R_{liq}^{i}}" title="Loan constraints" /> are the *i*th asset value in ether and its [liquidation threshold](https://docs.aave.com/risk/asset-risk/risk-parameters#liquidation-threshold) respectively.
 
 Therefore, if we'd like to borrow _L_ in value with some existing debt _D_, the following must be satisfied:
 
-<img src="https://latex.codecogs.com/svg.png?\ \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}-L\geq 0\textbf{ (1)}" title="Simple maximum borrow" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}-L\geq 0 \space \space \space \textbf{(1)}}" title="Simple maximum borrow" />
 
-<br>Or,
+Or,
 
 <img src="https://latex.codecogs.com/svg.latex?L\leq \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}\textbf{ (2)}" title="Simple maximum borrow constraint" />
 
