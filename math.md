@@ -2,7 +2,7 @@
 
 From Aave protocol, every debt position needs to maintain its [health factor](https://docs.aave.com/risk/asset-risk/risk-parameters#health-factor) greater than 1, which means:
 
-<img src="https://latex.codecogs.com/svg.image?HF=\frac{Asset_{collat}}{Debt}=\frac{\sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})}{Debt}\geq 1" title="Health factor" />
+<img src="https://render.githubusercontent.com/render/math?math=HF=\frac{Asset_{collat}}{Debt}=\frac{\sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})}{Debt}\geq 1" title="Health factor" />
 
 <br>
 <br>
@@ -11,7 +11,7 @@ From Aave protocol, every debt position needs to maintain its [health factor](ht
 
 Therefore, if we'd like to borrow _L_ in value with some existing debt _D_, the following must be satisfied:
 
-<img src="https://latex.codecogs.com/svg.latex?\ \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}-L\geq 0\textbf{ (1)}" title="Simple maximum borrow" />
+<img src="https://latex.codecogs.com/svg.png?\ \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}-L\geq 0\textbf{ (1)}" title="Simple maximum borrow" />
 
 <br>Or,
 
