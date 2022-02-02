@@ -8,20 +8,17 @@ From Aave protocol, every debt position needs to maintain its [health factor](ht
 
 Therefore, if we'd like to borrow _L_ in value with some existing debt _D_, the following must be satisfied:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}-L\geq 0 \space \space \space \textbf{(1)}}" title="Simple maximum borrow" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}-L\geq 0} \space \space \space \textbf{(1)}" title="Simple maximum borrow" />
 
 Or,
 
-<img src="https://latex.codecogs.com/svg.latex?L\leq \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}\textbf{ (2)}" title="Simple maximum borrow constraint" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large L\leq \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i})-D_{exist}} \space \space \space \textbf{(2)}" title="Simple maximum borrow constraint" />
 
 <br> In practice, Aave has another constraint called [_Maximum Loan To Value_](https://docs.aave.com/risk/asset-risk/risk-parameters#loan-to-value) (LTV) on its assets, which is less than the liquidation threshold of that particular asset. This sets some safety buffer to protect the position from being liquidated in case the user borrows so much to drive his HF to 1. So the maximum he can borrow is:
 
-<img src="https://latex.codecogs.com/svg.latex?L_{max}= \sum_{i=1}^{k}(R_{ltv}^{i}\cdot A_{i})-D_{exist}\textbf{ (3)}" title="Simple maximum borrow constraint" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large L_{max}= \sum_{i=1}^{k}(R_{ltv}^{i}\cdot A_{i})-D_{exist}} \space \space \space \textbf{(3)}" title="Simple maximum borrow constraint" />
 
-<br>
-<br>
-
-<img src="https://latex.codecogs.com/svg.latex?R_{ltv}^{i}" title="Loan to value" /> is the maximum _loan to value_ of the *i*th asset.
+<img src="https://render.githubusercontent.com/render/math?math={\Large R_{ltv}^{i}}" title="Loan to value" /> is the maximum _loan to value_ of the *i*th asset.
 
 ## Leverage
 
