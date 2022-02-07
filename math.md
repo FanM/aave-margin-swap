@@ -26,11 +26,11 @@ In practice, Aave has another constraint called [_Maximum Loan To Value_](https:
 
 Sometimes people borrowing an asset just want to engineer some leveraged positions. For instance, they can short an asset by borrowing it, swapping it for a stable coin, then depositing the latter back. (A long position can be created just by swapping the asset pair just mentioned.) Suppose we borrow an asset with value _L_, exchange it to token _t_ with value _L'_ and deposit back. From **(1)**, we must satisfy:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large  \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i}) %2B R_{liq}^{t}\cdot L' -D_{exist}-L\geq 0}" title="Maximum borrow by depositing back" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large  \sum_{i=1}^{k}(R_{liq}^{i}\cdot A_{i}) %2B R_{liq}^{t}\cdot L^{'} -D_{exist}-L\geq 0}" title="Maximum borrow by depositing back" />
 
 Or, in practice:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large \sum_{i=1}^{k}(R_{ltv}^{i}\cdot A_{i}) %2B R_{ltv}^{t}\cdot L' -D_{exist}-L\geq 0} \space \space \space \textbf{(4)}" title="Maximum borrow by depositing back" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large \sum_{i=1}^{k}(R_{ltv}^{i}\cdot A_{i}) %2B R_{ltv}^{t}\cdot L^{'} -D_{exist}-L\geq 0} \space \space \space \textbf{(4)}" title="Maximum borrow by depositing back" />
 
 If we don't consider the slippage during token swaps, which means _L_ = _L'_, the maximum we can end up borrowing is:
 
@@ -49,7 +49,7 @@ To achieve the aforementioned in a single operation, we need to reverse our proc
 
 Without asking a friend to do us this favor, we can utilize Aave's [flash loans](https://docs.aave.com/developers/guides/flash-loans) in this situation. It's not free. Consider **(4)**, the fee incurred for _L'_ amount is:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large fee=R_{flash}\cdot L'}" title="Flash loan fee" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large fee=R_{flash}\cdot L^{'}}" title="Flash loan fee" />
 
 <img src="https://render.githubusercontent.com/render/math?math={\large R_{flash}}" title="Flash loan rate" /> is the rate of flash loan (0.09% currently in Aave).
 
@@ -57,29 +57,29 @@ Plus, we need to factor the lost due to the swap slippage in as well.
 
 1. Pay fees using the collateral
 
-  <img src="https://render.githubusercontent.com/render/math?math={\Large L\cdot(1-R_{slip})=(L' %2B fee)}" title="lost in swap slippage" />
+  <img src="https://render.githubusercontent.com/render/math?math={\Large L\cdot(1-R_{slip})=(L^{'} %2B fee)}" title="lost in swap slippage" />
   Or,
-  <img src="https://render.githubusercontent.com/render/math?math={\Large L' = L \cdot \frac{1-R_{slip}}{1 %2B R_{flash}}} " title="lost in swap slippage" />
+  <img src="https://render.githubusercontent.com/render/math?math={\Large L^{'} = L \cdot \frac{1-R_{slip}}{1 %2B R_{flash}}} " title="lost in swap slippage" />
 
 2. Pay fees with extra ethers
 
-  <img src="https://render.githubusercontent.com/render/math?math={\Large L' = L\cdot(1-R_{slip})}" title="lost in swap slippage" />
+  <img src="https://render.githubusercontent.com/render/math?math={\Large L^{'} = L\cdot(1-R_{slip})}" title="lost in swap slippage" />
 
 In both cases, **(4)** has to be satisfied, or:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large L \leq \sum_{i=1}^{k}(R_{ltv}^{i}\cdot A_{i})-D_{exist} %2B R_{ltv}^{t}\cdot L'} \space \space \space \textbf{(6)}" title="maximum borrow with depositing back" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large L \leq \sum_{i=1}^{k}(R_{ltv}^{i}\cdot A_{i})-D_{exist} %2B R_{ltv}^{t}\cdot L^{'}} \space \space \space \textbf{(6)}" title="maximum borrow with depositing back" />
 
 Our health factor after those operations will be:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large  HF=\frac{Asset_{collat}}{Debt}=\frac{Asset_{exist}%2BAsset_{\Delta} }{L%2B D_{exist}}=\frac{\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})%2BR_{liq}^{L}\cdot L'}{L%2BD_{exist}}} \space \space \space \textbf{(7)}" title="Health factor" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large  HF=\frac{Asset_{collat}}{Debt}=\frac{Asset_{exist}%2BAsset_{\Delta} }{L%2B D_{exist}}=\frac{\sum_{i=1}^{k} (R_{liq}^{i}\cdot A_{i})%2BR_{liq}^{L}\cdot L^{'}}{L%2BD_{exist}}} \space \space \space \textbf{(7)}" title="Health factor" />
 
 ## Deleverage
 
 A user can specify the amount of the debt asset she's willing to repay and a list of collaterals to swap out for that asset. The total collateral to be reduced is:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large A'=\sum_{i=1}^{m}A_{i}'} \textbf{(8)}" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large A^{'}=\sum_{i=1}^{m}A_{i}^{'}} \textbf{(8)}" />
 
-<img src="https://render.githubusercontent.com/render/math?math={\large A_{i}'}" title="Asset to reduce"/>is the reduced value\_ for the *i*th collateral.
+<img src="https://render.githubusercontent.com/render/math?math={\large A_{i}^{'}}" title="Asset to reduce"/>is the reduced value\_ for the *i*th collateral.
 
 Since Aave protocol doesn't allow a smart contract to withdraw collateral on behalf of a user. We still need to resort to flash loan to pay down the debt. First we flash-loan the same amount of debt token to repay the debt our user wants to reduce, which incurs fee:
 
@@ -87,7 +87,7 @@ Since Aave protocol doesn't allow a smart contract to withdraw collateral on beh
 
 Secondly, we swap the reduced collaterals to the debt token to repay the flash loan. Consider the slippage, the amount we got after the swap will be:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large \Delta=(1-R_{slip})\cdot A'} \space \space \textbf{(9)}" title="Collateral reduced after swap" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large \Delta=(1-R_{slip})\cdot A^{'}} \space \space \textbf{(9)}" title="Collateral reduced after swap" />
 
 And make sure we verify in either case:
 
@@ -105,4 +105,4 @@ Our new debt position:
 
 New health factor:
 
-<img src="https://render.githubusercontent.com/render/math?math={\Large HF=\frac{Asset_{collat}}{Debt}=\frac{\sum_{i=1}^{k}R_{liq}^{i}\cdot A_{i} -\sum_{i=1}^{m}R_{liq}^{i}\cdot A'_{i}}{D_{exist}-D_{repay}}} \space \space \space \textbf{(11)}" title="Health factor" />
+<img src="https://render.githubusercontent.com/render/math?math={\Large HF=\frac{Asset_{collat}}{Debt}=\frac{\sum_{i=1}^{k}R_{liq}^{i}\cdot A_{i} -\sum_{i=1}^{m}R_{liq}^{i}\cdot A_{i}^{'}}{D_{exist}-D_{repay}}} \space \space \space \textbf{(11)}" title="Health factor" />
