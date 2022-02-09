@@ -33,7 +33,7 @@ const config: HardhatUserConfig = {
     },
   },
   paths: {
-    //artifacts: "./client/src/contracts",
+    artifacts: "./client/src/contracts",
   },
   mocha: {
     timeout: 400000,

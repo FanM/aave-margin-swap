@@ -1,0 +1,841 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "AaveLeveragedSwapBase",
+  "sourceName": "contracts/AaveLeveragedSwapBase.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "targetToken",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "targetAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "borrowRateMode",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "slippage",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "targetAmountReturned",
+          "type": "uint256"
+        }
+      ],
+      "name": "Deleverage",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "targetToken",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "pairToken",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "targetAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "borrowRateMode",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "slippage",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "pairAmountReturned",
+          "type": "uint256"
+        }
+      ],
+      "name": "Leverage",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "FLASH_LOAN_FEE_RATE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PROTOCOL_DATA_PROVIDER_ID",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo[]",
+          "name": "_assets",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "_amounts",
+          "type": "uint256[]"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "_targetToken",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_targetAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_rateMode",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_slippage",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "_feePaidByCollateral",
+          "type": "bool"
+        }
+      ],
+      "name": "checkAndCalculateRepayVars",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "feeETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "existDebtETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "flashLoanETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "currentHealthFactor",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "expectedHealthFactor",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256[]",
+              "name": "reducedCollateralValues",
+              "type": "uint256[]"
+            }
+          ],
+          "internalType": "struct AaveLeveragedSwapBase.RepayVars",
+          "name": "repayVars",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "_targetToken",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_targetTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "_pairToken",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_slippage",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "_feePaidByCollateral",
+          "type": "bool"
+        }
+      ],
+      "name": "checkAndCalculateSwapVars",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "loanETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxLoanETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "feeETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "existDebtETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "flashLoanETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "currentHealthFactor",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "expectedHealthFactor",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct AaveLeveragedSwapBase.SwapVars",
+          "name": "swapVars",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getAssetPositions",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "symbol",
+              "type": "string"
+            },
+            {
+              "internalType": "address",
+              "name": "token",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "aTokenBalance",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stableDebt",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "variableDebt",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "principalStableDebt",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "scaledVariableDebt",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "usedAsCollateral",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.Position[]",
+          "name": "positions",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_token",
+          "type": "address"
+        }
+      ],
+      "name": "getTokenInfo",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "tokenInfo",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo[]",
+          "name": "collaterals",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "collateralAmounts",
+          "type": "uint256[]"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "targetToken",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "targetAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "rateMode",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slippage",
+          "type": "uint256"
+        }
+      ],
+      "name": "repayDebt",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "targetToken",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "targetAmount",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "pairToken",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "rateMode",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slippage",
+          "type": "uint256"
+        }
+      ],
+      "name": "swapPreapprovedAssets",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "vars",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "targetTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "pairTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "feeTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "loanETH",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "feeETH",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slippage",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "borrowRateMode",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "targetToken",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "collaterable",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationThreshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ltv",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "decimals",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IAaveLeveragedSwapManager.TokenInfo",
+          "name": "pairToken",
+          "type": "tuple"
+        },
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
