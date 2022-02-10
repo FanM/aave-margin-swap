@@ -83,6 +83,8 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       .getAllReservesTokens();
     positions = new Position[](tokenList.length);
     for (uint i = 0; i < tokenList.length; i++) {
+      TokenInfo memory tokenInfo = getTokenInfo(tokenList[i].tokenAddress);
+
       (
         uint aTokenBalance,
         uint stableDebt,
@@ -106,7 +108,9 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
         variableDebt,
         principalStableDebt,
         scaledVariableDebt,
-        usedAsCollateral
+        usedAsCollateral,
+        tokenInfo.borrowable,
+        tokenInfo.canBeCollateral
       );
     }
   }
@@ -121,9 +125,9 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     uint _slippage,
     bool _feePaidByCollateral
   ) public view returns (SwapVars memory swapVars) {
-    // pairToken should be collaterable
+    // pairToken should be able to use as collateral
     require(
-      _pairToken.collaterable,
+      _pairToken.canBeCollateral,
       Errors.LEVERAGE_PAIR_TOKEN_NOT_COLLATERABLE
     );
     uint totalCollateralETH;
@@ -209,14 +213,23 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
         bool userUsedAsCollateralEnabled
       ) = _tryGetUserTokenETH(_assets[i], _amounts[i], msg.sender);
       require(
-        userUsedAsCollateralEnabled && _assets[i].collaterable,
-        Errors.DELEVERAGE_ASSET_TOKEN_NOT_COLLATERABLE
+        userUsedAsCollateralEnabled && _assets[i].canBeCollateral,
+        Errors.DELEVERAGE_ASSET_TOKEN_CANNOT_BE_COLLATERAL
       );
       repayVars.reducedCollateralValues[i] = tokenValueETH;
       totalCollateralReducedETH += tokenValueETH;
-      totalCollateralETH -= tokenValueETH.percentMul(
-        _assets[i].liquidationThreshold
+      // reuse local variable to avoid stack too deep
+      tokenValueETH = tokenValueETH.percentMul(_assets[i].liquidationThreshold);
+      // this is possible as (totalCollateralETH * currentLiquidationThreshold)
+      // can be a little less than the sum of (tokenValueETH * liquidationThreshold),
+      // although totalCollateralETH = sum(tokenValueETH)
+      require(
+        totalCollateralETH > tokenValueETH,
+        Errors.DELEVERAGE_REDUCED_ASSET_EXCCEED_NEEDED
       );
+      unchecked {
+        totalCollateralETH -= tokenValueETH;
+      }
     }
     repayVars.feeETH = repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
     uint totalLoanETH = (
@@ -255,13 +268,15 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       tokenInfo.liquidationThreshold,
       ,
       ,
-      tokenInfo.collaterable,
+      tokenInfo.canBeCollateral,
       tokenInfo.borrowable,
       ,
       isActive,
       isFrozen
     ) = DATA_PROVIDER.getReserveConfigurationData(_token);
-    tokenInfo.collaterable = tokenInfo.collaterable && (isActive && !isFrozen);
+    tokenInfo.canBeCollateral =
+      tokenInfo.canBeCollateral &&
+      (isActive && !isFrozen);
     tokenInfo.borrowable = tokenInfo.borrowable && (isActive && !isFrozen);
   }
 

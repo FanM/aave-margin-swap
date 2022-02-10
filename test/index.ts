@@ -2,11 +2,13 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
+import Web3 from "web3";
 
 import {
   LendingPoolAddressesProvider,
   ProtocalDataProvider,
   SushiswapRouter,
+  WethGateway,
   NativeToken,
   DaiToken,
   WethToken,
@@ -24,6 +26,7 @@ import {
   IPriceOracleGetter,
   ILendingPool,
   ILendingPool__factory,
+  IWETHGateway__factory,
   IERC20__factory,
   IERC20,
 } from "../typechain";
@@ -32,6 +35,7 @@ const WEI = BigInt(1e18);
 const ABS_ERROR_ALLOWED = 1e15; // 0.001
 const ONE_HUNDRED_PERCENT = BigInt(10000); // 100%
 const SLIPPAGE = BigInt(200); // 2%
+const DEPOSIT_AMOUNT = BigInt(10) * WEI;
 const LOAN_WETH_AMOUNT = BigInt(5) * BigInt(1e15);
 const REPAY_WETH_AMOUNT = BigInt(4) * BigInt(1e15);
 const RATE_MODE = 2;
@@ -39,7 +43,7 @@ const RATE_MODE = 2;
 type TokenInfo = [string, boolean, boolean, BigNumber, BigNumber, BigNumber] & {
   tokenAddress: string;
   borrowable: boolean;
-  collaterable: boolean;
+  canBeCollateral: boolean;
   liquidationThreshold: BigNumber;
   ltv: BigNumber;
   decimals: BigNumber;
@@ -72,6 +76,7 @@ let dataProvider: IProtocolDataProvider;
 let priceOracle: IPriceOracleGetter;
 let lendingPool: ILendingPool;
 let account: Signer;
+let collateralTokenAddrs: TokenAddresses;
 let targetTokenInfo: TokenInfo;
 let targetTokenAddrs: TokenAddresses;
 let targetToken: IERC20;
@@ -82,21 +87,49 @@ let aPairToken: IERC20;
 
 before(async () => {
   const accounts = await ethers.getSigners();
+  const adminAccount = accounts[1];
   account = accounts[0];
-
   const AaveLeveragedSwapManager = await ethers.getContractFactory(
     "AaveLeveragedSwapManager"
   );
-  aaveManager = await AaveLeveragedSwapManager.deploy();
+  const aaveManagerImpl = await AaveLeveragedSwapManager.deploy();
 
-  await aaveManager.deployed();
-  console.debug("AaveLeveragedSwapManager deployed to:", aaveManager.address);
-
-  await aaveManager.initialize(
-    LendingPoolAddressesProvider,
-    SushiswapRouter,
-    NativeToken
+  await aaveManagerImpl.deployed();
+  console.debug(
+    "AaveLeveragedSwapManager deployed to:",
+    aaveManagerImpl.address
   );
+
+  const web3 = new Web3();
+  const initParams = web3.eth.abi.encodeFunctionCall(
+    {
+      name: "initialize",
+      type: "function",
+      inputs: [
+        {
+          type: "address",
+          name: "_addressProvider",
+        },
+        {
+          type: "address",
+          name: "_sushiRouter",
+        },
+        {
+          type: "address",
+          name: "_nativeETH",
+        },
+      ],
+    },
+    [LendingPoolAddressesProvider, SushiswapRouter, NativeToken]
+  );
+  const Proxy = await ethers.getContractFactory("TransparentUpgradeableProxy");
+  const proxy = await Proxy.deploy(
+    aaveManagerImpl.address,
+    await adminAccount.getAddress(),
+    initParams
+  );
+  console.debug("Proxy deployed to:", proxy.address);
+  aaveManager = AaveLeveragedSwapManager.attach(proxy.address);
 
   const addressProvider = ILendingPoolAddressesProvider__factory.connect(
     LendingPoolAddressesProvider,
@@ -110,6 +143,22 @@ before(async () => {
     await addressProvider.getLendingPool(),
     account
   );
+  // deposit native tokens as our collateral
+  const accountAddress = await account.getAddress();
+  collateralTokenAddrs = await dataProvider.getReserveTokensAddresses(
+    NativeToken
+  );
+  const aCollateralToken = IERC20__factory.connect(
+    collateralTokenAddrs.aTokenAddress,
+    account
+  );
+  const aCollateralBalance = await aCollateralToken.balanceOf(accountAddress);
+  if (aCollateralBalance.toBigInt() < DEPOSIT_AMOUNT) {
+    const wethGateway = IWETHGateway__factory.connect(WethGateway, account);
+    wethGateway.depositETH(lendingPool.address, accountAddress, 0, {
+      value: DEPOSIT_AMOUNT,
+    });
+  }
   priceOracle = IPriceOracleGetter__factory.connect(
     await addressProvider.getPriceOracle(),
     account
@@ -138,6 +187,24 @@ describe("AaveLeveragedSwapManager", function () {
       )
     ).to.be.revertedWith("Initializable: contract is already initialized");
   });
+
+  /*
+  it("Should succeed listing asset tokens", async function () {
+    const positions = await aaveManager.getAssetPositions();
+    for (let position of positions) {
+      if (position.token === NativeToken) {
+        expect(position.borrowable).to.eq(true);
+        expect(position.canBeCollateral).to.eq(true);
+      } else if (position.token === AaveToken) {
+        expect(position.borrowable).to.eq(false);
+        expect(position.canBeCollateral).to.eq(true);
+      } else if (position.token === UsdtToken) {
+        expect(position.borrowable).to.eq(true);
+        expect(position.canBeCollateral).to.eq(false);
+      }
+    }
+  });
+  */
 
   it("Should fail without asset delegation approvement", async function () {
     await expect(
@@ -232,7 +299,7 @@ describe("AaveLeveragedSwapManager", function () {
         RATE_MODE,
         SLIPPAGE
       )
-    ).to.be.revertedWith("E11");
+    ).to.be.revertedWith("E12");
   });
 
   it("Should succeed repaying partial debt", async function () {
@@ -321,25 +388,29 @@ describe("AaveLeveragedSwapManager", function () {
   });
 
   it("Should succeed repaying total debt with fees sent in", async function () {
-    const aTargetToken = IERC20__factory.connect(
-      targetTokenAddrs.aTokenAddress,
+    const collateralTokenInfo = await aaveManager.getTokenInfo(NativeToken);
+    const aCollateralToken = IERC20__factory.connect(
+      collateralTokenAddrs.aTokenAddress,
       account
     );
-    const aTargetTokenBalance = await aTargetToken.balanceOf(
-      await account.getAddress()
-    );
+    const aCollateralTokenBalance = (
+      await aCollateralToken.balanceOf(await account.getAddress())
+    )
+      .mul(9)
+      .div(10); // do not use the exact aToken balance as the reduced amount
+    // will exceed totalCollateralETH * currentLiquidationThreshold
 
     const aPairTokenBalance = await aPairToken.balanceOf(
       await account.getAddress()
     );
-    const assets = [pairTokenInfo, targetTokenInfo];
-    const amounts = [aPairTokenBalance, aTargetTokenBalance];
+    const assets = [pairTokenInfo, collateralTokenInfo];
+    const amounts = [aPairTokenBalance, aCollateralTokenBalance];
 
-    let wethVariableDebtToken = IERC20__factory.connect(
+    let targetVariableDebtToken = IERC20__factory.connect(
       targetTokenAddrs.variableDebtTokenAddress,
       account
     );
-    const repaidAmount = await wethVariableDebtToken.balanceOf(
+    const repaidAmount = await targetVariableDebtToken.balanceOf(
       await account.getAddress()
     );
     const repayVars = await aaveManager.checkAndCalculateRepayVars(
@@ -354,7 +425,10 @@ describe("AaveLeveragedSwapManager", function () {
     console.debug(repayVars);
 
     await aPairToken.approve(aaveManager.address, aPairTokenBalance);
-    await aTargetToken.approve(aaveManager.address, aTargetTokenBalance);
+    await aCollateralToken.approve(
+      aaveManager.address,
+      aCollateralTokenBalance
+    );
     const feeAmount =
       (repayVars.feeETH.toBigInt() * WEI) /
       (await priceOracle.getAssetPrice(NativeToken)).toBigInt();

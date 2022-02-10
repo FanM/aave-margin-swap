@@ -46,21 +46,18 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: `https://speedy-nodes-nyc.moralis.io/${process.env.MORALIS_API_KEY}/polygon/mainnet/archive`,
-        blockNumber: 24176064,
+        blockNumber: 24759763,
       },
       accounts: [
         {
-          privateKey: process.env.PRIVATE_KEY!,
-          balance: "1791574534000381328",
+          privateKey: process.env.PRIVATE_KEY_1!,
+          balance: "100000000000000000000",
+        },
+        {
+          privateKey: process.env.PRIVATE_KEY_2!,
+          balance: "100000000000000000000",
         },
       ],
-    },
-    mumbai: {
-      url: "https://rpc-mumbai.maticvigil.com/",
-      chainId: 80001,
-      accounts:
-        process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-      gas: 300000,
     },
   },
   gasReporter: {

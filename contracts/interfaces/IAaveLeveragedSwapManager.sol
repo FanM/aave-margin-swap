@@ -46,7 +46,7 @@ interface IAaveLeveragedSwapManager {
   struct TokenInfo {
     address tokenAddress;
     bool borrowable;
-    bool collaterable;
+    bool canBeCollateral;
     uint liquidationThreshold;
     uint ltv;
     uint decimals;
@@ -61,6 +61,8 @@ interface IAaveLeveragedSwapManager {
     uint principalStableDebt;
     uint scaledVariableDebt;
     bool usedAsCollateral;
+    bool borrowable;
+    bool canBeCollateral;
   }
 
   /**

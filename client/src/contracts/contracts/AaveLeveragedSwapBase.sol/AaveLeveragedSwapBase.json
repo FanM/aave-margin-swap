@@ -137,7 +137,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -179,7 +179,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -282,7 +282,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -324,7 +324,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -451,6 +451,16 @@
               "internalType": "bool",
               "name": "usedAsCollateral",
               "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "borrowable",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "canBeCollateral",
+              "type": "bool"
             }
           ],
           "internalType": "struct IAaveLeveragedSwapManager.Position[]",
@@ -485,7 +495,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -528,7 +538,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -570,7 +580,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -630,7 +640,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -672,7 +682,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -764,7 +774,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
@@ -801,7 +811,7 @@
             },
             {
               "internalType": "bool",
-              "name": "collaterable",
+              "name": "canBeCollateral",
               "type": "bool"
             },
             {
