@@ -59,6 +59,13 @@ const config: HardhatUserConfig = {
         },
       ],
     },
+    kovan: {
+      url: "https://kovan.poa.network",
+      chainId: 42,
+      accounts:
+        process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+      gas: 3000000,
+    },
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,

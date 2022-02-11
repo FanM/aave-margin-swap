@@ -25,6 +25,7 @@ import { Web3Provider } from "@ethersproject/providers";
 
 import { useEagerConnect, useInactiveListener } from "./hooks";
 import AaveManagerContract from "./contracts/contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";
+import PriceOracleContract from "./contracts/contracts/interfaces/IPriceOracle.sol/IPriceOracleGetter.json";
 import WalletMenu from "./WalletMenu";
 import AssetPanel from "./AssetPanel";
 
@@ -62,6 +63,8 @@ const AppToolBar = () => {
   //const [activatingConnector, setActivatingConnector] =
   //  useState<AbstractConnector>();
   const [aaveMgrContract, setAaveMgrContract] = React.useState<Contract>();
+  const [priceOracleContract, setPriceOracleContract] =
+    React.useState<Contract>();
   // handle logic to recognize the connector currently being activated
   React.useEffect(() => {
     //if (activatingConnector && activatingConnector === connector) {
@@ -74,6 +77,12 @@ const AppToolBar = () => {
           new web3.eth.Contract(
             AaveManagerContract.abi as AbiItem[],
             process.env.REACT_APP_DEPLOYED_CONTRACT
+          )
+        );
+        setPriceOracleContract(
+          new web3.eth.Contract(
+            PriceOracleContract.abi as AbiItem[],
+            process.env.REACT_APP_PRICE_ORACLE_CONTRACT
           )
         );
       });
@@ -125,7 +134,12 @@ const AppToolBar = () => {
           />
         </Toolbar>
       </AppBar>
-      <AssetPanel aaveManager={aaveMgrContract} />
+      {active && (
+        <AssetPanel
+          aaveManager={aaveMgrContract}
+          priceOracle={priceOracleContract}
+        />
+      )}
       <Snackbar
         open={!!error}
         autoHideDuration={6000}
