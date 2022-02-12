@@ -159,15 +159,20 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       PercentageMath.PERCENTAGE_FACTOR - _slippage
     );
 
-    if (_feePaidByCollateral)
-      swapVars.flashLoanETH = swapVars.flashLoanETH.percentDiv(
-        PercentageMath.PERCENTAGE_FACTOR + FLASH_LOAN_FEE_RATE
-      );
-
-    // max loanable after depositing back
-    swapVars.maxLoanETH =
-      userAvailableBorrowsETH +
-      swapVars.flashLoanETH.percentMul(_pairToken.ltv);
+    // calculates max loanable after depositing back
+    // for details refer to math.md
+    uint tempTerm1 = PercentageMath.PERCENTAGE_FACTOR -
+      _pairToken.ltv.percentMul(PercentageMath.PERCENTAGE_FACTOR - _slippage);
+    if (_feePaidByCollateral) {
+      uint tempTerm2 = PercentageMath.PERCENTAGE_FACTOR + FLASH_LOAN_FEE_RATE;
+      swapVars.flashLoanETH = swapVars.flashLoanETH.percentDiv(tempTerm2);
+      tempTerm1 += FLASH_LOAN_FEE_RATE;
+      swapVars.maxLoanETH = userAvailableBorrowsETH
+        .percentMul(tempTerm2)
+        .percentDiv(tempTerm1);
+    } else {
+      swapVars.maxLoanETH = userAvailableBorrowsETH.percentDiv(tempTerm1);
+    }
 
     swapVars.feeETH = swapVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
     uint newCollateral = swapVars.flashLoanETH.percentMul(

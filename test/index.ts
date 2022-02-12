@@ -31,14 +31,14 @@ import {
   IERC20,
 } from "../typechain";
 
-const WEI = BigInt(1e18);
+const ETH_IN_WEI = BigInt(1e18);
 const ABS_ERROR_ALLOWED = 1e15; // 0.001
 const ONE_HUNDRED_PERCENT = BigInt(10000); // 100%
-const FEE_CALCULATION_SKEW = BigInt(10); // usually ±1
+const FEE_CALCULATION_SKEW = BigInt(5); // usually ±1 wei
 const SLIPPAGE = BigInt(200); // 2%
-const DEPOSIT_AMOUNT = BigInt(20) * WEI;
-const LOAN_WETH_AMOUNT = BigInt(25) * WEI;
-const REPAY_WETH_AMOUNT = BigInt(23) * WEI;
+const DEPOSIT_AMOUNT = BigInt(20) * ETH_IN_WEI;
+const LOAN_WETH_AMOUNT = BigInt(50) * ETH_IN_WEI;
+const REPAY_WETH_AMOUNT = BigInt(47) * ETH_IN_WEI;
 const RATE_MODE = 2;
 
 type TokenInfo = [string, boolean, boolean, BigNumber, BigNumber, BigNumber] & {
@@ -364,7 +364,7 @@ describe("AaveLeveragedSwapManager", function () {
       LOAN_WETH_AMOUNT
     );
     const feeAmount =
-      (swapVars.feeETH.toBigInt() * WEI) /
+      (swapVars.feeETH.toBigInt() * ETH_IN_WEI) /
       (await priceOracle.getAssetPrice(NativeToken)).toBigInt();
     const tx = await aaveManager.swapPreapprovedAssets(
       targetTokenInfo,
@@ -432,7 +432,7 @@ describe("AaveLeveragedSwapManager", function () {
       aCollateralTokenBalance
     );
     const feeAmount =
-      (repayVars.feeETH.toBigInt() * WEI) /
+      (repayVars.feeETH.toBigInt() * ETH_IN_WEI) /
       (await priceOracle.getAssetPrice(NativeToken)).toBigInt();
     const tx = await aaveManager.repayDebt(
       assets,
