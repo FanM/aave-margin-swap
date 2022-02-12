@@ -6,6 +6,7 @@ import "./interfaces/ILendingPool.sol";
 import "./interfaces/IProtocolDataProvider.sol";
 import "./interfaces/IPriceOracle.sol";
 import "./interfaces/IUniswapV2Router02.sol";
+import "./interfaces/IWeth.sol";
 import "./utils/EnumerableMap.sol";
 import "./utils/PercentageMath.sol";
 import "./utils/WadRayMath.sol";
@@ -37,15 +38,15 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     uint loanETH;
     uint maxLoanETH;
     uint feeETH;
-    uint existDebtETH;
     uint flashLoanETH;
     uint currentHealthFactor;
     uint expectedHealthFactor;
   }
 
   struct RepayVars {
+    uint loanETH;
     uint feeETH;
-    uint existDebtETH;
+    uint totalCollateralReducedETH;
     uint flashLoanETH;
     uint currentHealthFactor;
     uint expectedHealthFactor;
@@ -132,13 +133,16 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     );
     uint totalCollateralETH;
     uint currentLiquidationThreshold;
+    uint userAvailableBorrowsETH;
+    uint existDebtETH;
     (
       totalCollateralETH,
-      swapVars.maxLoanETH,
-      swapVars.existDebtETH,
+      existDebtETH,
+      userAvailableBorrowsETH,
       currentLiquidationThreshold,
+      ,
       swapVars.currentHealthFactor
-    ) = _getMaxLoanAndDebt(msg.sender);
+    ) = LENDING_POOL.getUserAccountData(msg.sender);
 
     // targetToken should be borrowable
     require(
@@ -160,12 +164,18 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
         PercentageMath.PERCENTAGE_FACTOR + FLASH_LOAN_FEE_RATE
       );
 
+    // max loanable after depositing back
+    swapVars.maxLoanETH =
+      userAvailableBorrowsETH +
+      swapVars.flashLoanETH.percentMul(_pairToken.ltv);
+
     swapVars.feeETH = swapVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
     uint newCollateral = swapVars.flashLoanETH.percentMul(
       _pairToken.liquidationThreshold
     ) + totalCollateralETH.percentMul(currentLiquidationThreshold);
-    uint newDebt = swapVars.existDebtETH + swapVars.loanETH;
-    swapVars.expectedHealthFactor = newCollateral.wadDiv(newDebt);
+    swapVars.expectedHealthFactor = newCollateral.wadDiv(
+      existDebtETH + swapVars.loanETH
+    );
   }
 
   /**
@@ -188,13 +198,15 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     );
     uint totalCollateralETH;
     uint currentLiquidationThreshold;
+    uint existDebtETH;
     (
       totalCollateralETH,
+      existDebtETH,
       ,
-      repayVars.existDebtETH,
       currentLiquidationThreshold,
+      ,
       repayVars.currentHealthFactor
-    ) = _getMaxLoanAndDebt(msg.sender);
+    ) = LENDING_POOL.getUserAccountData(msg.sender);
 
     require(
       _assets.length == _amounts.length,
@@ -206,7 +218,6 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       currentLiquidationThreshold
     );
     // depends on caller to ensure no duplicate entries
-    uint totalCollateralReducedETH;
     for (uint i = 0; i < _assets.length; i++) {
       (
         uint tokenValueETH,
@@ -217,7 +228,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
         Errors.DELEVERAGE_ASSET_TOKEN_CANNOT_BE_COLLATERAL
       );
       repayVars.reducedCollateralValues[i] = tokenValueETH;
-      totalCollateralReducedETH += tokenValueETH;
+      repayVars.totalCollateralReducedETH += tokenValueETH;
       // reuse local variable to avoid stack too deep
       tokenValueETH = tokenValueETH.percentMul(_assets[i].liquidationThreshold);
       // this is possible as (totalCollateralETH * currentLiquidationThreshold)
@@ -232,23 +243,19 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       }
     }
     repayVars.feeETH = repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
-    uint totalLoanETH = (
+    repayVars.loanETH = (
       _feePaidByCollateral
         ? repayVars.flashLoanETH
         : repayVars.flashLoanETH + repayVars.feeETH
     ).percentDiv(PercentageMath.PERCENTAGE_FACTOR - _slippage);
-    require(
-      totalCollateralReducedETH >= totalLoanETH,
-      Errors.DELEVERAGE_REDUCED_ASSET_NOT_ENOUGH
-    );
 
-    if (repayVars.existDebtETH <= repayVars.flashLoanETH) {
+    if (existDebtETH <= repayVars.flashLoanETH) {
       // user's debt is cleared
       repayVars.expectedHealthFactor = type(uint).max;
     } else {
       unchecked {
         repayVars.expectedHealthFactor = totalCollateralETH.wadDiv(
-          repayVars.existDebtETH - repayVars.flashLoanETH
+          existDebtETH - repayVars.flashLoanETH
         );
       }
     }
@@ -330,29 +337,6 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       );
   }
 
-  function _getMaxLoanAndDebt(address user)
-    private
-    view
-    returns (
-      uint totalCollateral,
-      uint maxLoan,
-      uint debt,
-      uint liquidationThreshold,
-      uint healthFactor
-    )
-  {
-    uint userAvailableBorrowsETH;
-    (
-      totalCollateral,
-      debt,
-      userAvailableBorrowsETH,
-      liquidationThreshold,
-      ,
-      healthFactor
-    ) = LENDING_POOL.getUserAccountData(user);
-    maxLoan = debt + userAvailableBorrowsETH;
-  }
-
   function _getSushiSwapTokenPath(address fromToken, address toToken)
     private
     pure
@@ -381,7 +365,11 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
         address(this),
         _amount.wadToDecimals(_token.decimals) // converts to token's decimals
       )
-    returns (bool) {} catch Error(
+    returns (bool succeeded) {
+      if (!succeeded) {
+        revert(Errors.DELEVERAGE_ATOKEN_TRANSFER_FAILED_WITH_UNKNOWN_REASON);
+      }
+    } catch Error(
       string memory /*reason*/
     ) {
       revert(Errors.DELEVERAGE_USER_DID_NOT_APPROVE_ATOKEN_TRANSFER);
@@ -402,6 +390,10 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     uint amountOutMin, // wad
     address onBehalfOf
   ) internal returns (uint) {
+    if (NATIVE_ETH == outToken.tokenAddress) {
+      IWETH(NATIVE_ETH).deposit{value: amountIn}();
+      return amountIn;
+    }
     amountOutMin = amountOutMin.wadToDecimals(outToken.decimals);
     try
       SUSHI_ROUTER.swapExactETHForTokens{value: amountIn}(

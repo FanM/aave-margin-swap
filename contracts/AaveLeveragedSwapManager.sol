@@ -68,24 +68,19 @@ contract AaveLeveragedSwapManager is
       _slippage,
       msg.value == 0
     );
+    require(
+      swapVars.loanETH <= swapVars.maxLoanETH,
+      Errors.LEVERAGE_COLLATERAL_NOT_ENOUGH
+    );
 
-    uint pairTokenLtv = _pairToken.ltv;
     vars.loanETH = swapVars.loanETH;
     vars.feeETH = swapVars.feeETH;
 
     uint flashLoanETH = swapVars.flashLoanETH;
-    // max loanable after depositing back
-    uint maxLoanETH = swapVars.maxLoanETH -
-      swapVars.existDebtETH +
-      flashLoanETH.percentMul(pairTokenLtv);
     if (msg.value > 0) {
       // uses the native token sent to pay the fees
       _ensureValueSentCanCoverFees(msg.value);
     }
-    require(
-      swapVars.loanETH <= maxLoanETH,
-      Errors.LEVERAGE_COLLATERAL_NOT_ENOUGH
-    );
     // calculates the amount we need to flash loan in pairToken
     vars.pairTokenAmount = convertEthToTokenAmount(
       flashLoanETH,
@@ -136,6 +131,10 @@ contract AaveLeveragedSwapManager is
       msg.value == 0
     );
 
+    require(
+      repayVars.totalCollateralReducedETH >= repayVars.loanETH,
+      Errors.DELEVERAGE_REDUCED_ASSET_NOT_ENOUGH
+    );
     require(
       repayVars.expectedHealthFactor > WadRayMath.WAD,
       Errors.DELEVERAGE_HEALTH_FACTOR_BELOW_ONE
@@ -200,14 +199,13 @@ contract AaveLeveragedSwapManager is
 
   function _ensureValueSentCanCoverFees(uint _value) private {
     // converts the native token value to ETH
-    uint wethAmount = PRICE_ORACLE.getAssetPrice(NATIVE_ETH).wadMul(_value);
     // factors in the swap slippage and
+    uint wethAmount = PRICE_ORACLE
+      .getAssetPrice(NATIVE_ETH)
+      .wadMul(_value)
+      .percentMul(PercentageMath.PERCENTAGE_FACTOR - vars.slippage);
     // verifies that its value is enough to cover the fees
-    require(
-      wethAmount.percentMul(PercentageMath.PERCENTAGE_FACTOR - vars.slippage) >=
-        vars.feeETH,
-      Errors.OPS_FLASH_LOAN_FEE_NOT_ENOUGH
-    );
+    require(wethAmount >= vars.feeETH, Errors.OPS_FLASH_LOAN_FEE_NOT_ENOUGH);
     vars.feeTokenAmount = _value;
   }
 

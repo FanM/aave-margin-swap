@@ -45,8 +45,7 @@ const config: HardhatUserConfig = {
     },
     hardhat: {
       forking: {
-        url: `https://speedy-nodes-nyc.moralis.io/${process.env.MORALIS_API_KEY}/polygon/mainnet/archive`,
-        blockNumber: 24759763,
+        url: "https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}",
       },
       accounts: [
         {

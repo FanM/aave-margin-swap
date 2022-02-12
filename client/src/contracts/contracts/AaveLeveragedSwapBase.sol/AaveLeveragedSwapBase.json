@@ -229,12 +229,17 @@
           "components": [
             {
               "internalType": "uint256",
+              "name": "loanETH",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
               "name": "feeETH",
               "type": "uint256"
             },
             {
               "internalType": "uint256",
-              "name": "existDebtETH",
+              "name": "totalCollateralReducedETH",
               "type": "uint256"
             },
             {
@@ -375,11 +380,6 @@
             {
               "internalType": "uint256",
               "name": "feeETH",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "existDebtETH",
               "type": "uint256"
             },
             {

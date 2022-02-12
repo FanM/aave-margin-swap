@@ -14,7 +14,7 @@ import {
   WethToken,
   UsdtToken,
   AaveToken,
-} from "../.env.polygon.json";
+} from "../.env.mainnet.json";
 
 import {
   AaveLeveragedSwapManager,
@@ -34,10 +34,11 @@ import {
 const WEI = BigInt(1e18);
 const ABS_ERROR_ALLOWED = 1e15; // 0.001
 const ONE_HUNDRED_PERCENT = BigInt(10000); // 100%
+const FEE_CALCULATION_SKEW = BigInt(10); // usually ±1
 const SLIPPAGE = BigInt(200); // 2%
-const DEPOSIT_AMOUNT = BigInt(10) * WEI;
-const LOAN_WETH_AMOUNT = BigInt(5) * BigInt(1e15);
-const REPAY_WETH_AMOUNT = BigInt(4) * BigInt(1e15);
+const DEPOSIT_AMOUNT = BigInt(20) * WEI;
+const LOAN_WETH_AMOUNT = BigInt(25) * WEI;
+const REPAY_WETH_AMOUNT = BigInt(23) * WEI;
 const RATE_MODE = 2;
 
 type TokenInfo = [string, boolean, boolean, BigNumber, BigNumber, BigNumber] & {
@@ -375,7 +376,8 @@ describe("AaveLeveragedSwapManager", function () {
         value:
           (feeAmount * // consider the slippage
             ONE_HUNDRED_PERCENT) /
-          (ONE_HUNDRED_PERCENT - SLIPPAGE),
+            (ONE_HUNDRED_PERCENT - SLIPPAGE) +
+          FEE_CALCULATION_SKEW,
       }
     );
 
@@ -443,7 +445,8 @@ describe("AaveLeveragedSwapManager", function () {
         value:
           (feeAmount * // consider the slippage
             ONE_HUNDRED_PERCENT) /
-          (ONE_HUNDRED_PERCENT - SLIPPAGE),
+            (ONE_HUNDRED_PERCENT - SLIPPAGE) +
+          FEE_CALCULATION_SKEW,
       }
     );
     const recept = await ethers.provider.getTransactionReceipt(tx.hash);
