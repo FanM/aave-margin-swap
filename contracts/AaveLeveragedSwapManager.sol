@@ -14,10 +14,10 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 contract AaveLeveragedSwapManager is
-  AaveLeveragedSwapBase,
   IFlashLoanReceiver,
   ReentrancyGuard,
-  Initializable
+  Initializable,
+  AaveLeveragedSwapBase
 {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;

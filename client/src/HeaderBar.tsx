@@ -24,8 +24,8 @@ import { UserRejectedRequestError as UserRejectedRequestErrorWalletConnect } fro
 import { Web3Provider } from "@ethersproject/providers";
 
 import { useEagerConnect, useInactiveListener } from "./hooks";
-import AaveManagerContract from "./contracts/contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";
-import PriceOracleContract from "./contracts/contracts/interfaces/IPriceOracle.sol/IPriceOracleGetter.json";
+import AaveManagerContract from "./contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";
+import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter.json";
 import WalletMenu from "./WalletMenu";
 import AssetPanel from "./AssetPanel";
 

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { BigNumber } from "ethers";
 import { Contract } from "web3-eth-contract";
+import { formatEther } from "@ethersproject/units";
 
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
@@ -307,7 +308,7 @@ export default function LeverageDialog(props: LeverageDialogProps) {
               </Typography>
               <Typography gutterBottom>
                 {`Health Factor: ${
-                  swapVars ? swapVars.expectedHealthFactor : "--"
+                  swapVars ? formatEther(swapVars.expectedHealthFactor) : "--"
                 }`}
               </Typography>
             </Grid>
