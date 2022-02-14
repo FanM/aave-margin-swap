@@ -178,9 +178,10 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     uint newCollateral = swapVars.flashLoanETH.percentMul(
       _pairToken.liquidationThreshold
     ) + totalCollateralETH.percentMul(currentLiquidationThreshold);
-    swapVars.expectedHealthFactor = newCollateral.wadDiv(
-      existDebtETH + swapVars.loanETH
-    );
+    uint newDebt = existDebtETH + swapVars.loanETH;
+    swapVars.expectedHealthFactor = newDebt == 0
+      ? type(uint).max
+      : newCollateral.wadDiv(newDebt);
   }
 
   /**
