@@ -20,9 +20,10 @@ import Typography from "@mui/material/Typography";
 import Select, { SelectChangeEvent } from "@mui/material/Select";
 
 import { AssetPosition } from "./AssetPanel";
+import TokenValueSlider from "./TokenValueSlider";
+import RadioButtonsGroup from "./RadioButton";
 
 type SwapVars = [
-  BigNumber,
   BigNumber,
   BigNumber,
   BigNumber,
@@ -33,7 +34,6 @@ type SwapVars = [
   loanETH: BigNumber;
   maxLoanETH: BigNumber;
   feeETH: BigNumber;
-  existDebtETH: BigNumber;
   flashLoanETH: BigNumber;
   currentHealthFactor: BigNumber;
   expectedHealthFactor: BigNumber;
@@ -157,7 +157,12 @@ type LeverageDialogProps = {
   account: string | null | undefined;
   assetList: AssetPosition[] | undefined;
 };
-export default function LeverageDialog(props: LeverageDialogProps) {
+export const LeverageDialog: React.FC<LeverageDialogProps> = ({
+  aaveManager,
+  priceOracle,
+  account,
+  assetList,
+}) => {
   const [assetMap, setAssetMap] = React.useState<Map<string, AssetPosition>>();
   const [collateralAssets, setCollateralAssets] =
     React.useState<AssetPosition[]>();
@@ -166,11 +171,13 @@ export default function LeverageDialog(props: LeverageDialogProps) {
   const [targetToken, setTargetToken] = React.useState<AssetPosition>();
   const [pairToken, setPairToken] = React.useState<AssetPosition>();
   const [slippage, setSlippage] = React.useState<number>(2);
-  const [targetTokenAmount, setTargetTokenAmount] = React.useState<BigInt>(
-    BigInt(1000)
+  const [targetTokenAmount, setTargetTokenAmount] = React.useState<BigNumber>(
+    BigNumber.from(0)
   );
+  const [payFeeByCollateral, setPayFeeByCollateral] = React.useState(true);
+  const [useVariableRate, setUseVariableRate] = React.useState(true);
   const [maxTargetTokenAmount, setMaxTargetTokenAmount] =
-    React.useState<BigInt>();
+    React.useState<number>();
   const [swapVars, setSwapVars] = React.useState<SwapVars>();
   const [open, setOpen] = React.useState(false);
 
@@ -180,7 +187,9 @@ export default function LeverageDialog(props: LeverageDialogProps) {
         .getAssetPrice(token.token)
         .call()
         .then((p: string) => {
-          setMaxTargetTokenAmount(BigInt(maxLoanETH) / BigInt(p));
+          setMaxTargetTokenAmount(
+            Number(BigNumber.from(maxLoanETH).div(BigNumber.from(p)))
+          );
         });
     },
     []
@@ -188,64 +197,61 @@ export default function LeverageDialog(props: LeverageDialogProps) {
 
   React.useEffect(() => {
     const updateHealthFactor = async () => {
-      if (props.aaveManager && props.account && targetToken && pairToken) {
-        const targetTokenInfo = await props.aaveManager.methods
+      if (aaveManager && account && targetToken && pairToken) {
+        const targetTokenInfo = await aaveManager.methods
           .getTokenInfo(targetToken.token)
           .call();
-        const pairTokenInfo = await props.aaveManager.methods
+        const pairTokenInfo = await aaveManager.methods
           .getTokenInfo(pairToken.token)
           .call();
-        const swapVars = await props.aaveManager.methods
+        const swapVars = await aaveManager.methods
           .checkAndCalculateSwapVars(
             targetTokenInfo,
             targetTokenAmount,
             pairTokenInfo,
             slippage * 100,
-            true
+            payFeeByCollateral
           )
-          .call({ from: props.account });
-        calculateMaxLoanAmount(
-          swapVars.maxLoanETH,
-          targetToken,
-          props.priceOracle!
-        );
+          .call({ from: account });
+        calculateMaxLoanAmount(swapVars.maxLoanETH, targetToken, priceOracle!);
         setSwapVars(swapVars);
       }
     };
     updateHealthFactor();
   }, [
-    props,
+    aaveManager,
+    account,
+    priceOracle,
     targetToken,
     pairToken,
     targetTokenAmount,
     slippage,
+    payFeeByCollateral,
     calculateMaxLoanAmount,
   ]);
 
   React.useEffect(() => {
-    if (props.assetList) {
+    if (assetList) {
       setAssetMap(
-        props.assetList.reduce((obj, element) => {
+        assetList.reduce((obj, element) => {
           obj.set(element.symbol, element);
           return obj;
         }, new Map<string, AssetPosition>())
       );
 
       // collaterals and target token
-      const collateralAssets = props.assetList.filter(
+      const collateralAssets = assetList.filter(
         (asset) => asset.canBeCollateral
       );
       setCollateralAssets(collateralAssets);
       if (collateralAssets.length > 0) setTargetToken(collateralAssets[0]);
 
       // borrowables and pair token
-      const borrowableAssets = props.assetList.filter(
-        (asset) => asset.borrowable
-      );
+      const borrowableAssets = assetList.filter((asset) => asset.borrowable);
       setBorrowableAssets(borrowableAssets);
       if (borrowableAssets.length > 0) setPairToken(borrowableAssets[0]);
     }
-  }, [props]);
+  }, [assetList]);
 
   const handleClickOpen = () => {
     setOpen(true);
@@ -292,7 +298,13 @@ export default function LeverageDialog(props: LeverageDialogProps) {
                 selectToken={setPairToken}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={9}>
+              <TokenValueSlider
+                maxAmount={maxTargetTokenAmount}
+                setTokenValue={setTargetTokenAmount}
+              />
+            </Grid>
+            <Grid item xs={12} sm={3}>
               <SlippageSelect
                 label="Slippage"
                 slippage={slippage}
@@ -300,15 +312,34 @@ export default function LeverageDialog(props: LeverageDialogProps) {
                 selectSlippage={setSlippage}
               />
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <RadioButtonsGroup
+                groupLabel="Borrow Rate Mode"
+                buttonLable1="Variable Rate"
+                buttonLable2="Stable Rate"
+                setSelectedValue={setUseVariableRate}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <RadioButtonsGroup
+                groupLabel="Fees"
+                buttonLable1="Pay by Collateral"
+                buttonLable2="Pay by Ether"
+                setSelectedValue={setPayFeeByCollateral}
+              />
+            </Grid>
             <Grid item xs={12}>
               <Typography gutterBottom>
-                {`Max Loan Amount: ${
-                  maxTargetTokenAmount ? maxTargetTokenAmount.toString() : "--"
-                }`}
+                {`Fees: ${
+                  swapVars ? formatEther(swapVars.feeETH) : "--"
+                } ether`}
               </Typography>
               <Typography gutterBottom>
-                {`Health Factor: ${
-                  swapVars ? formatEther(swapVars.expectedHealthFactor) : "--"
+                {`New Health Factor: ${
+                  swapVars &&
+                  BigNumber.from(swapVars.expectedHealthFactor).lt(BigInt(1e22))
+                    ? formatEther(swapVars.expectedHealthFactor)
+                    : "--"
                 }`}
               </Typography>
             </Grid>
@@ -316,10 +347,12 @@ export default function LeverageDialog(props: LeverageDialogProps) {
         </DialogContent>
         <DialogActions>
           <Button autoFocus onClick={handleClose}>
-            swap
+            prepare swap
           </Button>
         </DialogActions>
       </BootstrapDialog>
     </div>
   );
-}
+};
+
+export default LeverageDialog;
