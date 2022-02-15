@@ -41,7 +41,15 @@ const LOAN_WETH_AMOUNT = BigInt(50) * ETH_IN_WEI;
 const REPAY_WETH_AMOUNT = BigInt(47) * ETH_IN_WEI;
 const RATE_MODE = 2;
 
-type TokenInfo = [string, boolean, boolean, BigNumber, BigNumber, BigNumber] & {
+type TokenInfo = [
+  string,
+  boolean,
+  boolean,
+  boolean,
+  BigNumber,
+  BigNumber,
+  BigNumber
+] & {
   tokenAddress: string;
   borrowable: boolean;
   canBeCollateral: boolean;

@@ -26,6 +26,7 @@ export type AssetPosition = [
   BigNumber,
   boolean,
   boolean,
+  boolean,
   boolean
 ] & {
   symbol: string;
@@ -38,6 +39,7 @@ export type AssetPosition = [
   usedAsCollateral: boolean;
   borrowable: boolean;
   canBeCollateral: boolean;
+  stableBorrowRateEnabled: boolean;
 };
 
 const useStyles = makeStyles(

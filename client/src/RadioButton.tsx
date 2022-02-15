@@ -10,12 +10,14 @@ type RadioButtonsGroupProps = {
   buttonLable1: string;
   buttonLable2: string;
   setSelectedValue: (value: boolean) => void;
+  secondOptionDisabled?: boolean;
 };
 const RadioButtonsGroup: React.FC<RadioButtonsGroupProps> = ({
   groupLabel,
   buttonLable1,
   buttonLable2,
   setSelectedValue,
+  secondOptionDisabled = false,
 }) => {
   const [value, setValue] = React.useState<boolean>(true);
 
@@ -43,6 +45,7 @@ const RadioButtonsGroup: React.FC<RadioButtonsGroupProps> = ({
           value="false"
           control={<Radio />}
           label={buttonLable2}
+          disabled={secondOptionDisabled}
         />
       </RadioGroup>
     </FormControl>

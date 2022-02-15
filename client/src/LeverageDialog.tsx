@@ -318,6 +318,9 @@ export const LeverageDialog: React.FC<LeverageDialogProps> = ({
                 buttonLable1="Variable Rate"
                 buttonLable2="Stable Rate"
                 setSelectedValue={setUseVariableRate}
+                secondOptionDisabled={
+                  !(targetToken && targetToken.stableBorrowRateEnabled)
+                }
               />
             </Grid>
             <Grid item xs={12} sm={6}>
