@@ -45,6 +45,7 @@ type TokenInfo = [string, boolean, boolean, BigNumber, BigNumber, BigNumber] & {
   tokenAddress: string;
   borrowable: boolean;
   canBeCollateral: boolean;
+  stableBorrowRateEnabled: boolean;
   liquidationThreshold: BigNumber;
   ltv: BigNumber;
   decimals: BigNumber;

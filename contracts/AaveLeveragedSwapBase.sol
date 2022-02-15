@@ -111,7 +111,8 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
         scaledVariableDebt,
         usedAsCollateral,
         tokenInfo.borrowable,
-        tokenInfo.canBeCollateral
+        tokenInfo.canBeCollateral,
+        tokenInfo.stableBorrowRateEnabled
       );
     }
   }
@@ -283,7 +284,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       ,
       tokenInfo.canBeCollateral,
       tokenInfo.borrowable,
-      ,
+      tokenInfo.stableBorrowRateEnabled,
       isActive,
       isFrozen
     ) = DATA_PROVIDER.getReserveConfigurationData(_token);

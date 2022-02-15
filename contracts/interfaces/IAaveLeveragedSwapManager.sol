@@ -47,6 +47,7 @@ interface IAaveLeveragedSwapManager {
     address tokenAddress;
     bool borrowable;
     bool canBeCollateral;
+    bool stableBorrowRateEnabled;
     uint liquidationThreshold;
     uint ltv;
     uint decimals;
@@ -63,6 +64,7 @@ interface IAaveLeveragedSwapManager {
     bool usedAsCollateral;
     bool borrowable;
     bool canBeCollateral;
+    bool stableBorrowRateEnabled;
   }
 
   /**
