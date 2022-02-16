@@ -1,6 +1,7 @@
 import * as React from "react";
-import { BigNumber } from "ethers";
+import Web3 from "web3";
 import { Contract } from "web3-eth-contract";
+import { AbiItem } from "web3-utils";
 import { useWeb3React } from "@web3-react/core";
 import { formatEther } from "@ethersproject/units";
 
@@ -14,33 +15,9 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 
+import { AssetPosition } from "./types";
 import LeverageDialog from "./LeverageDialog";
-
-export type AssetPosition = [
-  string,
-  string,
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  boolean,
-  boolean,
-  boolean,
-  boolean
-] & {
-  symbol: string;
-  token: string;
-  aTokenBalance: BigNumber;
-  stableDebt: BigNumber;
-  variableDebt: BigNumber;
-  principalStableDebt: BigNumber;
-  scaledVariableDebt: BigNumber;
-  usedAsCollateral: boolean;
-  borrowable: boolean;
-  canBeCollateral: boolean;
-  stableBorrowRateEnabled: boolean;
-};
+import AaveManagerContract from "./contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";
 
 const useStyles = makeStyles(
   createStyles({
@@ -129,12 +106,12 @@ const DebtPane = (props: AssetPaneProps) => {
 };
 
 type AssetPanelProps = {
-  aaveManager: Contract | undefined;
-  priceOracle: Contract | undefined;
+  web3: Web3 | undefined;
 };
-export default function AssetPanel(props: AssetPanelProps) {
+const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
   const classes = useStyles();
 
+  const [aaveMgrContract, setAaveMgrContract] = React.useState<Contract>();
   const { account } = useWeb3React();
   const [assetList, setAssetList] = React.useState<AssetPosition[]>();
   const [userCollaterals, setUserCollaterals] =
@@ -142,8 +119,12 @@ export default function AssetPanel(props: AssetPanelProps) {
   const [userDebts, setUserDebts] = React.useState<AssetPosition[]>();
 
   React.useEffect(() => {
-    if (props.aaveManager) {
-      props.aaveManager.methods
+    if (web3) {
+      const aaveManager = new web3.eth.Contract(
+        AaveManagerContract.abi as AbiItem[],
+        process.env.REACT_APP_DEPLOYED_CONTRACT
+      );
+      aaveManager.methods
         .getAssetPositions()
         .call({ from: account })
         .then((assets: AssetPosition[]) => {
@@ -163,10 +144,11 @@ export default function AssetPanel(props: AssetPanelProps) {
             )
           );
         });
+      setAaveMgrContract(aaveManager);
     } else {
       console.log("No web3!");
     }
-  }, [props, account]);
+  }, [web3, account]);
 
   return (
     <Grid container spacing={2}>
@@ -178,12 +160,14 @@ export default function AssetPanel(props: AssetPanelProps) {
       </Grid>
       <Grid item>
         <LeverageDialog
-          aaveManager={props.aaveManager}
-          priceOracle={props.priceOracle}
+          web3={web3}
+          aaveManager={aaveMgrContract}
           account={account}
           assetList={assetList}
         />
       </Grid>
     </Grid>
   );
-}
+};
+
+export default AssetPanel;

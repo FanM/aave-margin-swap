@@ -1,16 +1,18 @@
 import * as React from "react";
+import Web3 from "web3";
 import { BigNumber } from "ethers";
 import { Contract } from "web3-eth-contract";
+import { AbiItem } from "web3-utils";
 import { formatEther } from "@ethersproject/units";
 
 import Box from "@mui/material/Box";
+import Collapse from "@mui/material/Collapse";
 import Grid from "@mui/material/Grid";
 import Button from "@mui/material/Button";
 import { styled } from "@mui/material/styles";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import InputLabel from "@mui/material/InputLabel";
@@ -19,54 +21,49 @@ import FormControl from "@mui/material/FormControl";
 import Typography from "@mui/material/Typography";
 import Select, { SelectChangeEvent } from "@mui/material/Select";
 
-import { AssetPosition } from "./AssetPanel";
+import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter.json";
+import ProtocolDataProviderContract from "./contracts/IProtocolDataProvider.sol/IProtocolDataProvider.json";
+import IDebtTokenContract from "./contracts/IDebtToken.sol/IDebtToken.json";
+
+import { AssetPosition, TokenInfo, TokenAddresses, SwapVars } from "./types";
 import TokenValueSlider from "./TokenValueSlider";
 import RadioButtonsGroup from "./RadioButton";
+import ApprovalStepper, { ApprovalStep } from "./ApprovalStepper";
 
-type SwapVars = [
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  BigNumber
-] & {
-  loanETH: BigNumber;
-  maxLoanETH: BigNumber;
-  feeETH: BigNumber;
-  flashLoanETH: BigNumber;
-  currentHealthFactor: BigNumber;
-  expectedHealthFactor: BigNumber;
-};
+const MAX_TOKEN_AMOUNT_DECIMALS = 100000000; // 8 zeros
+const SLIPPAGE_BASE_UINT = BigNumber.from(100);
 
 type TokenSelectProps = {
   assets: AssetPosition[] | undefined;
-  token: AssetPosition | undefined;
-  assetMap: Map<string, AssetPosition> | undefined;
-  selectToken: (token: AssetPosition | undefined) => void;
+  tokenAddress: string | undefined;
+  selectToken: (tokenAddress: string) => void;
   label: string;
 };
 
-const TokenSelect = (props: TokenSelectProps) => {
+const TokenSelect: React.FC<TokenSelectProps> = ({
+  assets,
+  tokenAddress,
+  selectToken,
+  label,
+}) => {
   const handleTokenSelect = (event: SelectChangeEvent) => {
-    if (props.assetMap)
-      props.selectToken(props.assetMap.get(event.target.value));
+    selectToken(event.target.value);
   };
 
   return (
     <Box sx={{ minWidth: 120 }}>
-      {props.assets && props.token && (
+      {assets && tokenAddress && (
         <FormControl fullWidth>
-          <InputLabel id="token-select-label">{props.label}</InputLabel>
+          <InputLabel id="token-select-label">{label}</InputLabel>
           <Select
             labelId="token-select-label"
             id="token-select"
-            value={props.token.symbol}
-            label={props.label}
+            value={tokenAddress}
+            label={label}
             onChange={handleTokenSelect}
           >
-            {props.assets.map((asset, index) => (
-              <MenuItem key={index} value={asset.symbol}>
+            {assets.map((asset, index) => (
+              <MenuItem key={index} value={asset.token}>
                 {asset.symbol}
               </MenuItem>
             ))}
@@ -152,24 +149,29 @@ const BootstrapDialogTitle = (props: DialogTitleProps) => {
 };
 
 type LeverageDialogProps = {
+  web3: Web3 | undefined;
   aaveManager: Contract | undefined;
-  priceOracle: Contract | undefined;
   account: string | null | undefined;
   assetList: AssetPosition[] | undefined;
 };
+
 export const LeverageDialog: React.FC<LeverageDialogProps> = ({
+  web3,
   aaveManager,
-  priceOracle,
   account,
   assetList,
 }) => {
+  const [dataProvider, setDataProvider] = React.useState<Contract>();
+  const [priceOracle, setPriceOracle] = React.useState<Contract>();
+  const [approvalSteps, setApprovalSteps] = React.useState<ApprovalStep[]>();
+  // token address to AssetPosition
   const [assetMap, setAssetMap] = React.useState<Map<string, AssetPosition>>();
   const [collateralAssets, setCollateralAssets] =
     React.useState<AssetPosition[]>();
   const [borrowableAssets, setBorrowableAssets] =
     React.useState<AssetPosition[]>();
-  const [targetToken, setTargetToken] = React.useState<AssetPosition>();
-  const [pairToken, setPairToken] = React.useState<AssetPosition>();
+  const [targetToken, setTargetToken] = React.useState<TokenInfo>();
+  const [pairToken, setPairToken] = React.useState<TokenInfo>();
   const [slippage, setSlippage] = React.useState<number>(2);
   const [targetTokenAmount, setTargetTokenAmount] = React.useState<BigNumber>(
     BigNumber.from(0)
@@ -180,48 +182,88 @@ export const LeverageDialog: React.FC<LeverageDialogProps> = ({
     React.useState<number>();
   const [swapVars, setSwapVars] = React.useState<SwapVars>();
   const [open, setOpen] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
+
+  const getTokenInfo: (t: string) => Promise<TokenInfo> = React.useCallback(
+    async (tokenAddress: string) => {
+      return await aaveManager!.methods.getTokenInfo(tokenAddress).call();
+    },
+    [aaveManager]
+  );
 
   const calculateMaxLoanAmount = React.useCallback(
-    (maxLoanETH: string, token: AssetPosition, priceOracle: Contract) => {
+    (maxLoanETH: string, token: TokenInfo, priceOracle: Contract) => {
       priceOracle.methods
-        .getAssetPrice(token.token)
+        .getAssetPrice(token.tokenAddress)
         .call()
         .then((p: string) => {
           setMaxTargetTokenAmount(
-            Number(BigNumber.from(maxLoanETH).div(BigNumber.from(p)))
+            Number(
+              BigNumber.from(maxLoanETH)
+                .mul(MAX_TOKEN_AMOUNT_DECIMALS)
+                .div(BigNumber.from(p))
+            ) / MAX_TOKEN_AMOUNT_DECIMALS
           );
         });
     },
     []
   );
 
+  const handleLeveragedSwap = React.useCallback(async () => {
+    if (payFeeByCollateral) {
+      return aaveManager!.methods
+        .swapPreapprovedAssets(
+          targetToken,
+          targetTokenAmount,
+          pairToken,
+          useVariableRate ? 2 : 1,
+          SLIPPAGE_BASE_UINT.mul(20)
+        )
+        .send({ from: account });
+    } else {
+      return aaveManager!.methods
+        .swapPreapprovedAssets(
+          targetToken,
+          targetTokenAmount,
+          pairToken,
+          useVariableRate ? 2 : 1,
+          SLIPPAGE_BASE_UINT.mul(slippage)
+        )
+        .send({ from: account, value: swapVars!.feeETH });
+    }
+  }, [
+    aaveManager,
+    payFeeByCollateral,
+    targetToken,
+    targetTokenAmount,
+    pairToken,
+    useVariableRate,
+    slippage,
+    swapVars,
+    account,
+  ]);
+
   React.useEffect(() => {
     const updateHealthFactor = async () => {
-      if (aaveManager && account && targetToken && pairToken) {
-        const targetTokenInfo = await aaveManager.methods
-          .getTokenInfo(targetToken.token)
-          .call();
-        const pairTokenInfo = await aaveManager.methods
-          .getTokenInfo(pairToken.token)
-          .call();
+      if (aaveManager && priceOracle && account && targetToken && pairToken) {
         const swapVars = await aaveManager.methods
           .checkAndCalculateSwapVars(
-            targetTokenInfo,
+            targetToken,
             targetTokenAmount,
-            pairTokenInfo,
+            pairToken,
             slippage * 100,
             payFeeByCollateral
           )
           .call({ from: account });
-        calculateMaxLoanAmount(swapVars.maxLoanETH, targetToken, priceOracle!);
+        calculateMaxLoanAmount(swapVars.maxLoanETH, targetToken, priceOracle);
         setSwapVars(swapVars);
       }
     };
     updateHealthFactor();
   }, [
     aaveManager,
-    account,
     priceOracle,
+    account,
     targetToken,
     pairToken,
     targetTokenAmount,
@@ -231,10 +273,60 @@ export const LeverageDialog: React.FC<LeverageDialogProps> = ({
   ]);
 
   React.useEffect(() => {
+    if (web3 && assetMap && dataProvider && targetToken) {
+      dataProvider.methods
+        .getReserveTokensAddresses(targetToken.tokenAddress)
+        .call()
+        .then((addresses: TokenAddresses) => {
+          const debtTokenAddress = useVariableRate
+            ? addresses.variableDebtTokenAddress
+            : addresses.stableDebtTokenAddress;
+
+          const step: ApprovalStep = {
+            label: "Approve Delegation",
+            description: `Approve contract to borrow ${formatEther(
+              targetTokenAmount
+            )} ${
+              assetMap.get(targetToken.tokenAddress)!.symbol
+            } on behalf of you.`,
+            tokenAddress: targetToken.tokenAddress,
+            tokenAmount: targetTokenAmount,
+            tokenContract: new web3.eth.Contract(
+              IDebtTokenContract.abi as AbiItem[],
+              debtTokenAddress
+            ),
+          };
+          setApprovalSteps([step]);
+        });
+    }
+  }, [
+    web3,
+    dataProvider,
+    assetMap,
+    targetToken,
+    targetTokenAmount,
+    useVariableRate,
+  ]);
+
+  React.useEffect(() => {
+    if (web3) {
+      setPriceOracle(
+        new web3.eth.Contract(
+          PriceOracleContract.abi as AbiItem[],
+          process.env.REACT_APP_PRICE_ORACLE_CONTRACT
+        )
+      );
+      setDataProvider(
+        new web3.eth.Contract(
+          ProtocolDataProviderContract.abi as AbiItem[],
+          process.env.REACT_APP_POTOCOL_DATA_PROVIDER_CONTRACT
+        )
+      );
+    }
     if (assetList) {
       setAssetMap(
         assetList.reduce((obj, element) => {
-          obj.set(element.symbol, element);
+          obj.set(element.token, element);
           return obj;
         }, new Map<string, AssetPosition>())
       );
@@ -244,14 +336,18 @@ export const LeverageDialog: React.FC<LeverageDialogProps> = ({
         (asset) => asset.canBeCollateral
       );
       setCollateralAssets(collateralAssets);
-      if (collateralAssets.length > 0) setTargetToken(collateralAssets[0]);
+      if (collateralAssets.length > 0) {
+        getTokenInfo(collateralAssets[0].token).then((t) => setTargetToken(t));
+      }
 
       // borrowables and pair token
       const borrowableAssets = assetList.filter((asset) => asset.borrowable);
       setBorrowableAssets(borrowableAssets);
-      if (borrowableAssets.length > 0) setPairToken(borrowableAssets[0]);
+      if (borrowableAssets.length > 0) {
+        getTokenInfo(borrowableAssets[0].token).then((t) => setPairToken(t));
+      }
     }
-  }, [assetList]);
+  }, [web3, assetList, getTokenInfo]);
 
   const handleClickOpen = () => {
     setOpen(true);
@@ -259,6 +355,14 @@ export const LeverageDialog: React.FC<LeverageDialogProps> = ({
   const handleClose = () => {
     setOpen(false);
   };
+  const handleTargetTokenAmountSelect = React.useCallback((v: BigNumber) => {
+    if (v.gt(0)) {
+      setTargetTokenAmount(v);
+      setExpanded(true);
+    } else {
+      setExpanded(false);
+    }
+  }, []);
 
   return (
     <div>
@@ -284,24 +388,31 @@ export const LeverageDialog: React.FC<LeverageDialogProps> = ({
               <TokenSelect
                 label="Target Token"
                 assets={collateralAssets}
-                token={targetToken}
-                assetMap={assetMap}
-                selectToken={setTargetToken}
+                tokenAddress={targetToken && targetToken.tokenAddress}
+                selectToken={(tokenAddress) =>
+                  getTokenInfo(tokenAddress).then((t) => setTargetToken(t))
+                }
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TokenSelect
                 label="Pair Token"
                 assets={borrowableAssets}
-                token={pairToken}
-                assetMap={assetMap}
-                selectToken={setPairToken}
+                tokenAddress={pairToken && pairToken.tokenAddress}
+                selectToken={(tokenAddress) =>
+                  getTokenInfo(tokenAddress).then((t) => setPairToken(t))
+                }
               />
             </Grid>
             <Grid item xs={12} sm={9}>
               <TokenValueSlider
+                targetToken={
+                  targetToken &&
+                  assetMap &&
+                  assetMap.get(targetToken.tokenAddress)
+                }
                 maxAmount={maxTargetTokenAmount}
-                setTokenValue={setTargetTokenAmount}
+                setTokenValue={handleTargetTokenAmountSelect}
               />
             </Grid>
             <Grid item xs={12} sm={3}>
@@ -348,11 +459,18 @@ export const LeverageDialog: React.FC<LeverageDialogProps> = ({
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button autoFocus onClick={handleClose}>
-            prepare swap
-          </Button>
-        </DialogActions>
+        <Collapse in={expanded}>
+          <DialogContent>
+            {approvalSteps && (
+              <ApprovalStepper
+                steps={approvalSteps}
+                label="All set. Now swap your assets"
+                action={handleLeveragedSwap}
+                account={account}
+              />
+            )}
+          </DialogContent>
+        </Collapse>
       </BootstrapDialog>
     </div>
   );

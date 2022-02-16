@@ -1,7 +1,5 @@
 import React from "react";
 import Web3 from "web3";
-import { Contract } from "web3-eth-contract";
-import { AbiItem } from "web3-utils";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
@@ -24,8 +22,6 @@ import { UserRejectedRequestError as UserRejectedRequestErrorWalletConnect } fro
 import { Web3Provider } from "@ethersproject/providers";
 
 import { useEagerConnect, useInactiveListener } from "./hooks";
-import AaveManagerContract from "./contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";
-import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter.json";
 import WalletMenu from "./WalletMenu";
 import AssetPanel from "./AssetPanel";
 
@@ -62,9 +58,7 @@ const AppToolBar = () => {
     useWeb3React<Web3Provider>();
   //const [activatingConnector, setActivatingConnector] =
   //  useState<AbstractConnector>();
-  const [aaveMgrContract, setAaveMgrContract] = React.useState<Contract>();
-  const [priceOracleContract, setPriceOracleContract] =
-    React.useState<Contract>();
+  const [web3, setWeb3] = React.useState<Web3>();
   // handle logic to recognize the connector currently being activated
   React.useEffect(() => {
     //if (activatingConnector && activatingConnector === connector) {
@@ -72,19 +66,7 @@ const AppToolBar = () => {
     //}
     if (active) {
       connector!.getProvider().then((p) => {
-        const web3 = new Web3(p);
-        setAaveMgrContract(
-          new web3.eth.Contract(
-            AaveManagerContract.abi as AbiItem[],
-            process.env.REACT_APP_DEPLOYED_CONTRACT
-          )
-        );
-        setPriceOracleContract(
-          new web3.eth.Contract(
-            PriceOracleContract.abi as AbiItem[],
-            process.env.REACT_APP_PRICE_ORACLE_CONTRACT
-          )
-        );
+        setWeb3(new Web3(p));
       });
     }
   }, [active, connector]);
@@ -134,12 +116,7 @@ const AppToolBar = () => {
           />
         </Toolbar>
       </AppBar>
-      {active && (
-        <AssetPanel
-          aaveManager={aaveMgrContract}
-          priceOracle={priceOracleContract}
-        />
-      )}
+      {active && <AssetPanel web3={web3} />}
       <Snackbar
         open={!!error}
         autoHideDuration={6000}

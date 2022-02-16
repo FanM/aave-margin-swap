@@ -7,28 +7,43 @@ import Slider from "@mui/material/Slider";
 import MuiInput from "@mui/material/Input";
 
 import { BigNumber } from "ethers";
-import { parseEther } from "@ethersproject/units";
+import { AssetPosition } from "./types";
+
+const ETHER_DECIMALS = 18;
 
 const Input = styled(MuiInput)`
   width: 120px;
 `;
 
 type TokenValueSliderProps = {
+  targetToken: AssetPosition | undefined;
   maxAmount: number | undefined;
   setTokenValue: (value: BigNumber) => void;
 };
 
 const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
+  targetToken,
   maxAmount,
   setTokenValue,
 }) => {
   const [value, setValue] = React.useState<
     number | string | Array<number | string>
   >(0);
+  const [inputError, setInputError] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (targetToken) setValue(0);
+  }, [targetToken]);
 
   React.useEffect(() => {
     if (typeof value === "number" || typeof value === "string") {
-      setTokenValue(parseEther(value.toString()));
+      const valueStr = value.toString();
+      const pos = valueStr.indexOf(".");
+      const decimals = pos === -1 ? 0 : valueStr.length - pos - 1;
+      let tokenValue = BigNumber.from(valueStr.replace(".", ""));
+      for (let i = 0; i < ETHER_DECIMALS - decimals; i++)
+        tokenValue = tokenValue.mul(10);
+      setTokenValue(tokenValue);
     }
   }, [setTokenValue, value]);
 
@@ -37,7 +52,14 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
   };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setValue(event.target.value === "" ? 0 : Number(event.target.value));
+    const inputValue = event.target.value;
+    const valid = /^[0-9]+.?[0-9]{0,8}$/i.test(inputValue);
+    if (valid) {
+      setValue(Number(event.target.value));
+      setInputError(false);
+    } else {
+      setInputError(true);
+    }
   };
 
   const handleBlur = () => {
@@ -50,10 +72,10 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
 
   return (
     <Box sx={{ width: 450 }}>
-      {maxAmount && (
+      {maxAmount && targetToken && (
         <div>
           <Typography id="input-slider" gutterBottom>
-            {`Target Token Amount (Max ${maxAmount})`}
+            {`Target Token Amount (Max ${maxAmount} ${targetToken.symbol})`}
           </Typography>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={5} sm={4}>
@@ -74,6 +96,7 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
                 size="small"
                 onChange={handleInputChange}
                 onBlur={handleBlur}
+                error={inputError}
                 inputProps={{
                   step: maxAmount / 100,
                   min: 0,

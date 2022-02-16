@@ -62,6 +62,20 @@ const config: HardhatUserConfig = {
         process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
       gas: 3000000,
     },
+    polygon: {
+      url: "https://polygon-rpc.com",
+      chainId: 137,
+      accounts:
+        process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+      gas: 3000000,
+    },
+    mumbai: {
+      url: "https://rpc-mumbai.matic.today",
+      chainId: 80001,
+      accounts:
+        process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+      gas: 3000000,
+    },
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,

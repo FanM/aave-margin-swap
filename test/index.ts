@@ -20,7 +20,7 @@ import {
   AaveLeveragedSwapManager,
   IProtocolDataProvider,
   IProtocolDataProvider__factory,
-  IVariableDebtToken__factory,
+  IDebtToken__factory,
   ILendingPoolAddressesProvider__factory,
   IPriceOracleGetter__factory,
   IPriceOracleGetter,
@@ -266,7 +266,7 @@ describe("AaveLeveragedSwapManager", function () {
 
     const healthFactor = swapVars.expectedHealthFactor.toBigInt();
 
-    let wethVariableDebtToken = IVariableDebtToken__factory.connect(
+    let wethVariableDebtToken = IDebtToken__factory.connect(
       targetTokenAddrs.variableDebtTokenAddress,
       account
     );
@@ -364,7 +364,7 @@ describe("AaveLeveragedSwapManager", function () {
 
     const healthFactor = swapVars.expectedHealthFactor.toBigInt();
 
-    let wethVariableDebtToken = IVariableDebtToken__factory.connect(
+    let wethVariableDebtToken = IDebtToken__factory.connect(
       targetTokenAddrs.variableDebtTokenAddress,
       account
     );
