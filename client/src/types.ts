@@ -65,3 +65,25 @@ export type SwapVars = [
   currentHealthFactor: BigNumber;
   expectedHealthFactor: BigNumber;
 };
+
+export type RepayVars = [
+  BigNumber,
+  BigNumber,
+  BigNumber,
+  BigNumber,
+  BigNumber,
+  BigNumber,
+  BigNumber[]
+] & {
+  loanETH: BigNumber;
+  feeETH: BigNumber;
+  totalCollateralReducedETH: BigNumber;
+  flashLoanETH: BigNumber;
+  currentHealthFactor: BigNumber;
+  expectedHealthFactor: BigNumber;
+  reducedCollateralValues: BigNumber[];
+};
+
+export function tuple<T extends unknown[]>(...args: T): T {
+  return args;
+}

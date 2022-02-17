@@ -8,29 +8,23 @@ import StepContent from "@mui/material/StepContent";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Typography from "@mui/material/Typography";
 
-import { BigNumber } from "ethers";
-import { Contract } from "web3-eth-contract";
-
 export type ApprovalStep = {
   label: string;
   description: string;
-  tokenAddress: string;
-  tokenAmount: BigNumber;
-  tokenContract: Contract;
+  checkAllowance: () => Promise<boolean>;
+  approveAllowance: () => Promise<void>;
 };
 
 type ApprovalStepperProps = {
   steps: ApprovalStep[];
   label: string;
   action: () => Promise<void>;
-  account: string | null | undefined;
 };
 
 const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
   steps,
   label,
   action,
-  account,
 }) => {
   const [activeStep, setActiveStep] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
@@ -40,33 +34,23 @@ const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
       let i = 0;
       for (i = 0; i < steps.length; i++) {
         const step = steps[i];
-        const balance: string = await step.tokenContract.methods
-          .borrowAllowance(account, process.env.REACT_APP_DEPLOYED_CONTRACT)
-          .call();
-        if (BigNumber.from(balance).lt(step.tokenAmount)) {
+        if (!(await step.checkAllowance())) {
           setActiveStep(i);
           return;
         }
       }
       setActiveStep(i);
     };
-    if (account) {
-      getActiveStep();
-    }
-  }, [steps, account]);
+    getActiveStep();
+  }, [steps]);
 
   const handleNext = () => {
     const step = steps[activeStep];
     setLoading(true);
-    step.tokenContract.methods
-      .approveDelegation(
-        process.env.REACT_APP_DEPLOYED_CONTRACT,
-        step.tokenAmount
-      )
-      .send({ from: account })
-      .finally(() => {
-        setLoading(false);
-      });
+    step.approveAllowance().finally(() => {
+      setLoading(false);
+      setActiveStep(activeStep + 1);
+    });
   };
 
   const handleSubmit = () => {
@@ -80,7 +64,7 @@ const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
     <Box sx={{ maxWidth: 400 }}>
       <Stepper activeStep={activeStep} orientation="vertical">
         {steps.map((step, index) => (
-          <Step key={step.label}>
+          <Step key={index}>
             <StepLabel>{step.label}</StepLabel>
             <StepContent>
               <Typography>{step.description}</Typography>

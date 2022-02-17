@@ -35,7 +35,7 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
     if (targetToken) setValue(0);
   }, [targetToken]);
 
-  React.useEffect(() => {
+  const updateTokenValue = (value: number | number[] | string | string[]) => {
     if (typeof value === "number" || typeof value === "string") {
       const valueStr = value.toString();
       const pos = valueStr.indexOf(".");
@@ -45,17 +45,19 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
         tokenValue = tokenValue.mul(10);
       setTokenValue(tokenValue);
     }
-  }, [setTokenValue, value]);
+  };
 
   const handleSliderChange = (event: Event, newValue: number | number[]) => {
     setValue(newValue);
+    updateTokenValue(newValue);
   };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = event.target.value;
-    const valid = /^[0-9]+.?[0-9]{0,8}$/i.test(inputValue);
+    const valid = /^[0-9]+(.([0-9]{0,8}))?$/i.test(inputValue);
     if (valid) {
-      setValue(Number(event.target.value));
+      setValue(Number(inputValue));
+      updateTokenValue(inputValue);
       setInputError(false);
     } else {
       setInputError(true);
@@ -86,6 +88,7 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
                     : 0
                 }
                 onChange={handleSliderChange}
+                step={maxAmount / 100}
                 max={maxAmount}
                 aria-labelledby="input-slider"
               />

@@ -116,7 +116,7 @@ const AppToolBar = () => {
           />
         </Toolbar>
       </AppBar>
-      {active && <AssetPanel web3={web3} />}
+      {web3 && <AssetPanel web3={web3} />}
       <Snackbar
         open={!!error}
         autoHideDuration={6000}

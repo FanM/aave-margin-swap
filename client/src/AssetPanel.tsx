@@ -17,6 +17,7 @@ import Paper from "@mui/material/Paper";
 
 import { AssetPosition } from "./types";
 import LeverageDialog from "./LeverageDialog";
+import DeleverageDialog from "./DeleverageDialog";
 import AaveManagerContract from "./contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";
 
 const useStyles = makeStyles(
@@ -70,7 +71,21 @@ const CollateralPane = (props: AssetPaneProps) => {
   );
 };
 
-const DebtPane = (props: AssetPaneProps) => {
+type DebtPaneProps = {
+  web3: Web3;
+  aaveManager: Contract;
+  account: string;
+  debts: AssetPosition[] | undefined;
+  collaterals: AssetPosition[] | undefined;
+};
+
+const DebtPane: React.FC<DebtPaneProps> = ({
+  web3,
+  aaveManager,
+  account,
+  debts,
+  collaterals,
+}) => {
   return (
     <TableContainer component={Paper}>
       <Table sx={{ minWidth: 350 }} aria-label="simple table">
@@ -82,8 +97,8 @@ const DebtPane = (props: AssetPaneProps) => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {props.assets &&
-            props.assets.map((asset, index) => (
+          {debts &&
+            debts.map((asset: AssetPosition, index: number) => (
               <TableRow
                 key={index}
                 sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
@@ -92,10 +107,44 @@ const DebtPane = (props: AssetPaneProps) => {
                   {asset.symbol}
                 </TableCell>
                 <TableCell align="right">
-                  {formatEther(asset.stableDebt)}
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      {formatEther(asset.stableDebt)}
+                    </Grid>
+                    <Grid item xs={12}>
+                      <DeleverageDialog
+                        web3={web3}
+                        aaveManager={aaveManager}
+                        account={account}
+                        collateralList={collaterals}
+                        targetToken={asset}
+                        maxTargetTokenAmount={Number(
+                          formatEther(asset.stableDebt)
+                        )}
+                        borrowRateMode={1}
+                      />
+                    </Grid>
+                  </Grid>
                 </TableCell>
                 <TableCell align="right">
-                  {formatEther(asset.variableDebt)}
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      {formatEther(asset.variableDebt)}
+                    </Grid>
+                    <Grid item xs={12}>
+                      <DeleverageDialog
+                        web3={web3}
+                        aaveManager={aaveManager}
+                        account={account}
+                        collateralList={collaterals}
+                        targetToken={asset}
+                        maxTargetTokenAmount={Number(
+                          formatEther(asset.variableDebt)
+                        )}
+                        borrowRateMode={2}
+                      />
+                    </Grid>
+                  </Grid>
                 </TableCell>
               </TableRow>
             ))}
@@ -106,7 +155,7 @@ const DebtPane = (props: AssetPaneProps) => {
 };
 
 type AssetPanelProps = {
-  web3: Web3 | undefined;
+  web3: Web3;
 };
 const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
   const classes = useStyles();
@@ -119,54 +168,60 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
   const [userDebts, setUserDebts] = React.useState<AssetPosition[]>();
 
   React.useEffect(() => {
-    if (web3) {
-      const aaveManager = new web3.eth.Contract(
-        AaveManagerContract.abi as AbiItem[],
-        process.env.REACT_APP_DEPLOYED_CONTRACT
-      );
-      aaveManager.methods
-        .getAssetPositions()
-        .call({ from: account })
-        .then((assets: AssetPosition[]) => {
-          setAssetList(assets);
-          setUserCollaterals(
-            assets.filter(
-              (asset) =>
-                asset.usedAsCollateral &&
-                BigInt(asset.aTokenBalance.toString()) > 0
-            )
-          );
-          setUserDebts(
-            assets.filter(
-              (asset) =>
-                BigInt(asset.stableDebt.toString()) > 0 ||
-                BigInt(asset.variableDebt.toString()) > 0
-            )
-          );
-        });
-      setAaveMgrContract(aaveManager);
-    } else {
-      console.log("No web3!");
-    }
+    const aaveManager = new web3.eth.Contract(
+      AaveManagerContract.abi as AbiItem[],
+      process.env.REACT_APP_DEPLOYED_CONTRACT
+    );
+    aaveManager.methods
+      .getAssetPositions()
+      .call({ from: account })
+      .then((assets: AssetPosition[]) => {
+        setAssetList(assets);
+        setUserCollaterals(
+          assets.filter(
+            (asset) =>
+              asset.usedAsCollateral &&
+              BigInt(asset.aTokenBalance.toString()) > 0
+          )
+        );
+        setUserDebts(
+          assets.filter(
+            (asset) =>
+              BigInt(asset.stableDebt.toString()) > 0 ||
+              BigInt(asset.variableDebt.toString()) > 0
+          )
+        );
+      });
+    setAaveMgrContract(aaveManager);
   }, [web3, account]);
 
   return (
-    <Grid container spacing={2}>
-      <Grid item xs={12} sm={6}>
-        <CollateralPane assets={userCollaterals} />
-      </Grid>
-      <Grid item xs={12} sm={6}>
-        <DebtPane assets={userDebts} />
-      </Grid>
-      <Grid item>
-        <LeverageDialog
-          web3={web3}
-          aaveManager={aaveMgrContract}
-          account={account}
-          assetList={assetList}
-        />
-      </Grid>
-    </Grid>
+    <div>
+      {aaveMgrContract && assetList && account && (
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6}>
+            <CollateralPane assets={userCollaterals} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <DebtPane
+              web3={web3}
+              aaveManager={aaveMgrContract}
+              account={account}
+              debts={userDebts}
+              collaterals={userCollaterals}
+            />
+          </Grid>
+          <Grid item>
+            <LeverageDialog
+              web3={web3}
+              aaveManager={aaveMgrContract}
+              account={account}
+              assetList={assetList}
+            />
+          </Grid>
+        </Grid>
+      )}
+    </div>
   );
 };
 

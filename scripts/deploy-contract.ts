@@ -3,13 +3,12 @@
 //
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
-import Web3 from "web3";
 import { ethers } from "hardhat";
 import {
   LendingPoolAddressesProvider,
   SushiswapRouter,
   NativeToken,
-} from "../.env.kovan.json";
+} from "../.env.polygon.json";
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
@@ -18,9 +17,18 @@ async function main() {
   // If this script is run directly using `node` you may want to call compile
   // manually to make sure everything is compiled
   // await hre.run('compile');
+  const [deployerAccount] = await ethers.getSigners();
 
-  const accounts = await ethers.getSigners();
-  const adminAccount = accounts[0];
+  if (process.env.PROXY_ADMIN_ADDRESS === undefined) {
+    console.error("Please set PROXY_ADMIN_ADDRESS ENV variable first.");
+    return;
+  } else if (
+    process.env.PROXY_ADMIN_ADDRESS === (await deployerAccount.getAddress())
+  ) {
+    console.error("PROXY_ADMIN_ADDRESS cannot be the deployer account.");
+    return;
+  }
+
   // We get the contract to deploy
   const AaveLeveragedSwapManager = await ethers.getContractFactory(
     "AaveLeveragedSwapManager"
@@ -29,35 +37,25 @@ async function main() {
   await aaveManagerImpl.deployed();
   console.log("AaveLeveragedSwapManager deployed to:", aaveManagerImpl.address);
 
-  const web3 = new Web3();
-  const initParams = web3.eth.abi.encodeFunctionCall(
-    {
-      name: "initialize",
-      type: "function",
-      inputs: [
-        {
-          type: "address",
-          name: "_addressProvider",
-        },
-        {
-          type: "address",
-          name: "_sushiRouter",
-        },
-        {
-          type: "address",
-          name: "_nativeETH",
-        },
-      ],
-    },
-    [LendingPoolAddressesProvider, SushiswapRouter, NativeToken]
-  );
   const Proxy = await ethers.getContractFactory("TransparentUpgradeableProxy");
   const proxy = await Proxy.deploy(
     aaveManagerImpl.address,
-    await adminAccount.getAddress(),
-    initParams
+    process.env.PROXY_ADMIN_ADDRESS,
+    [] //initParams
   );
   console.debug("Proxy deployed to:", proxy.address);
+
+  const aaveManager = AaveLeveragedSwapManager.attach(proxy.address);
+  try {
+    await aaveManager.initialize(
+      LendingPoolAddressesProvider,
+      SushiswapRouter,
+      NativeToken
+    );
+    console.debug("AaveLeveragedSwapManager initialized");
+  } catch (e: any) {
+    console.error(e.message);
+  }
 }
 
 // We recommend this pattern to be able to use async/await everywhere

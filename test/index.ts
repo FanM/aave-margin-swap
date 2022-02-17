@@ -86,6 +86,8 @@ let dataProvider: IProtocolDataProvider;
 let priceOracle: IPriceOracleGetter;
 let lendingPool: ILendingPool;
 let account: Signer;
+let accountAddress: string;
+let adminAccount: Signer;
 let collateralTokenAddrs: TokenAddresses;
 let targetTokenInfo: TokenInfo;
 let targetTokenAddrs: TokenAddresses;
@@ -96,13 +98,15 @@ let pairToken: IERC20;
 let aPairToken: IERC20;
 
 before(async () => {
-  const accounts = await ethers.getSigners();
-  const adminAccount = accounts[1];
-  account = accounts[0];
+  [account, adminAccount] = await ethers.getSigners();
+  accountAddress = await account.getAddress();
+  const adminAddress = await adminAccount.getAddress();
   const AaveLeveragedSwapManager = await ethers.getContractFactory(
     "AaveLeveragedSwapManager"
   );
-  const aaveManagerImpl = await AaveLeveragedSwapManager.deploy();
+  const aaveManagerImpl = await AaveLeveragedSwapManager.connect(
+    adminAccount
+  ).deploy();
 
   await aaveManagerImpl.deployed();
   console.debug(
@@ -133,9 +137,9 @@ before(async () => {
     [LendingPoolAddressesProvider, SushiswapRouter, NativeToken]
   );
   const Proxy = await ethers.getContractFactory("TransparentUpgradeableProxy");
-  const proxy = await Proxy.deploy(
+  const proxy = await Proxy.connect(adminAccount).deploy(
     aaveManagerImpl.address,
-    await adminAccount.getAddress(),
+    adminAddress,
     initParams
   );
   console.debug("Proxy deployed to:", proxy.address);
@@ -154,7 +158,6 @@ before(async () => {
     account
   );
   // deposit native tokens as our collateral
-  const accountAddress = await account.getAddress();
   collateralTokenAddrs = await dataProvider.getReserveTokensAddresses(
     NativeToken
   );
@@ -186,7 +189,7 @@ before(async () => {
 
 describe("AaveLeveragedSwapManager", function () {
   async function getUserAccountData(): Promise<UserAccountData> {
-    return await lendingPool.getUserAccountData(await account.getAddress());
+    return await lendingPool.getUserAccountData(accountAddress);
   }
   it("Should fail if contract is initialized twice", async function () {
     await expect(
@@ -295,9 +298,7 @@ describe("AaveLeveragedSwapManager", function () {
   });
 
   it("Should fail repaying if user did not approve aToken", async function () {
-    let aPairTokenBalance = await aPairToken.balanceOf(
-      await account.getAddress()
-    );
+    let aPairTokenBalance = await aPairToken.balanceOf(accountAddress);
     const assets = [pairTokenInfo];
     const amounts = [aPairTokenBalance];
     await expect(
@@ -313,9 +314,7 @@ describe("AaveLeveragedSwapManager", function () {
   });
 
   it("Should succeed repaying partial debt", async function () {
-    let aPairTokenBalance = await aPairToken.balanceOf(
-      await account.getAddress()
-    );
+    let aPairTokenBalance = await aPairToken.balanceOf(accountAddress);
     const assets = [pairTokenInfo];
     const amounts = [aPairTokenBalance];
     const repayVars = await aaveManager.checkAndCalculateRepayVars(
@@ -405,15 +404,13 @@ describe("AaveLeveragedSwapManager", function () {
       account
     );
     const aCollateralTokenBalance = (
-      await aCollateralToken.balanceOf(await account.getAddress())
+      await aCollateralToken.balanceOf(accountAddress)
     )
       .mul(9)
       .div(10); // do not use the exact aToken balance as the reduced amount
     // will exceed totalCollateralETH * currentLiquidationThreshold
 
-    const aPairTokenBalance = await aPairToken.balanceOf(
-      await account.getAddress()
-    );
+    const aPairTokenBalance = await aPairToken.balanceOf(accountAddress);
     const assets = [pairTokenInfo, collateralTokenInfo];
     const amounts = [aPairTokenBalance, aCollateralTokenBalance];
 
@@ -422,7 +419,7 @@ describe("AaveLeveragedSwapManager", function () {
       account
     );
     const repaidAmount = await targetVariableDebtToken.balanceOf(
-      await account.getAddress()
+      accountAddress
     );
     const repayVars = await aaveManager.checkAndCalculateRepayVars(
       assets,

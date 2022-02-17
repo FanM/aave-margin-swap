@@ -42,18 +42,25 @@ const config: HardhatUserConfig = {
     },
     hardhat: {
       forking: {
-        url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
+        url:
+          process.env.INFURA_API_KEY !== undefined
+            ? `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`
+            : "",
       },
-      accounts: [
-        {
-          privateKey: process.env.PRIVATE_KEY_1!,
-          balance: "100000000000000000000",
-        },
-        {
-          privateKey: process.env.PRIVATE_KEY_2!,
-          balance: "100000000000000000000",
-        },
-      ],
+      accounts:
+        process.env.PRIVATE_KEY_1 !== undefined &&
+        process.env.PRIVATE_KEY_2 !== undefined
+          ? [
+              {
+                privateKey: process.env.PRIVATE_KEY_1!,
+                balance: "100000000000000000000",
+              },
+              {
+                privateKey: process.env.PRIVATE_KEY_2!,
+                balance: "100000000000000000000",
+              },
+            ]
+          : [],
     },
     kovan: {
       url: "https://kovan.poa.network",
