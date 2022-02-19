@@ -1,5 +1,8 @@
 import { BigNumber } from "@ethersproject/bignumber";
 
+export const TOKEN_FIXED_PRECISION = 8;
+export const HEALTH_FACTOR_FIXED_PRECISION = 2;
+
 export type AssetPosition = [
   string,
   string,

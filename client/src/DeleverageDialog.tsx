@@ -64,6 +64,7 @@ const CollateralPane = (props: AssetPaneProps) => {
                 </TableCell>
                 <TableCell align="right">
                   <TokenValueSlider
+                    label=""
                     targetToken={asset}
                     maxAmount={Number(formatEther(asset.aTokenBalance))}
                     setTokenValue={(value) =>
@@ -127,7 +128,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
     if (collateralReducedAmounts) {
       for (let i = 0; i < collateralReducedAmounts.length; i++) {
         const amount = collateralReducedAmounts[i];
-        if (amount.gt(0)) {
+        if (!!amount && amount.gt(0)) {
           const assetInfo = await getTokenInfo(collateralList![i].token);
           assetInfos.push(assetInfo);
           amounts.push(amount);
@@ -195,6 +196,9 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
   };
 
   const handleClose = () => {
+    setCollateralReducedAmounts(undefined);
+    setTargetTokenAmount(BigNumber.from(0));
+    setExpanded(false);
     setOpen(false);
   };
 
@@ -293,7 +297,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           Number(assetInfos[i].decimals)
         );
         const step: ApprovalStep = {
-          label: "Approve aToken Transfer",
+          label: `Approve aToken Transfer (a${assetSymbols[i]})`,
           description: `Approve contract to transfer ${formatEther(
             amounts[i]
           )} amount of ${assetSymbols[i]} aTokens on behalf of you.`,
@@ -351,6 +355,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
             </Grid>
             <Grid item xs={12} sm={9}>
               <TokenValueSlider
+                label="Target Token Amount"
                 targetToken={targetToken}
                 maxAmount={maxTargetTokenAmount}
                 setTokenValue={setTargetTokenAmount}
@@ -393,7 +398,11 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button autoFocus onClick={onPrepareRepay}>
+          <Button
+            autoFocus
+            disabled={targetTokenAmount.lte(0) || !!errorMessage}
+            onClick={onPrepareRepay}
+          >
             prepare repay
           </Button>
         </DialogActions>

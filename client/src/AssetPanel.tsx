@@ -15,7 +15,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 
-import { AssetPosition } from "./types";
+import { AssetPosition, TOKEN_FIXED_PRECISION } from "./types";
 import LeverageDialog from "./LeverageDialog";
 import DeleverageDialog from "./DeleverageDialog";
 import AaveManagerContract from "./contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";
@@ -61,7 +61,9 @@ const CollateralPane = (props: AssetPaneProps) => {
                   {asset.symbol}
                 </TableCell>
                 <TableCell align="right">
-                  {formatEther(asset.aTokenBalance)}
+                  {Number(formatEther(asset.aTokenBalance)).toFixed(
+                    TOKEN_FIXED_PRECISION
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -109,7 +111,9 @@ const DebtPane: React.FC<DebtPaneProps> = ({
                 <TableCell align="right">
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
-                      {formatEther(asset.stableDebt)}
+                      {Number(formatEther(asset.stableDebt)).toFixed(
+                        TOKEN_FIXED_PRECISION
+                      )}
                     </Grid>
                     <Grid item xs={12}>
                       <DeleverageDialog
@@ -129,7 +133,9 @@ const DebtPane: React.FC<DebtPaneProps> = ({
                 <TableCell align="right">
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
-                      {formatEther(asset.variableDebt)}
+                      {Number(formatEther(asset.variableDebt)).toFixed(
+                        TOKEN_FIXED_PRECISION
+                      )}
                     </Grid>
                     <Grid item xs={12}>
                       <DeleverageDialog

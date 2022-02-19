@@ -8,6 +8,7 @@ import { formatEther } from "@ethersproject/units";
 import Collapse from "@mui/material/Collapse";
 import Grid from "@mui/material/Grid";
 import Button from "@mui/material/Button";
+import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import Typography from "@mui/material/Typography";
 
@@ -15,7 +16,14 @@ import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter
 import ProtocolDataProviderContract from "./contracts/IProtocolDataProvider.sol/IProtocolDataProvider.json";
 import IDebtTokenContract from "./contracts/IDebtToken.sol/IDebtToken.json";
 
-import { AssetPosition, TokenInfo, TokenAddresses, SwapVars } from "./types";
+import {
+  AssetPosition,
+  TokenInfo,
+  TokenAddresses,
+  SwapVars,
+  TOKEN_FIXED_PRECISION,
+  HEALTH_FACTOR_FIXED_PRECISION,
+} from "./types";
 import { BootstrapDialog, BootstrapDialogTitle } from "./DialogComponents";
 import TokenSelect from "./TokenSelect";
 import SlippageSelect, { SLIPPAGE_BASE_UINT } from "./SlippageSelect";
@@ -23,7 +31,7 @@ import TokenValueSlider from "./TokenValueSlider";
 import RadioButtonsGroup from "./RadioButton";
 import ApprovalStepper, { ApprovalStep } from "./ApprovalStepper";
 
-const MAX_TOKEN_AMOUNT_DECIMALS = 100000000; // 8 zeros
+const MAX_TOKEN_AMOUNT_DECIMALS = 10 ** TOKEN_FIXED_PRECISION;
 
 type LeverageDialogProps = {
   web3: Web3;
@@ -181,13 +189,14 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
                 ? addresses.variableDebtTokenAddress
                 : addresses.stableDebtTokenAddress
             );
+            const targetTokenSymbol = assetMap.get(
+              targetToken.tokenAddress
+            )!.symbol;
             const step: ApprovalStep = {
-              label: "Approve Delegation",
+              label: `Approve Delegation (${targetTokenSymbol})`,
               description: `Approve contract to borrow ${formatEther(
                 targetTokenAmount
-              )} amount of ${
-                assetMap.get(targetToken.tokenAddress)!.symbol
-              } on behalf of you.`,
+              )} amount of ${targetTokenSymbol} on behalf of you.`,
               checkAllowance: () =>
                 checkAllowance(tokenContract, targetTokenAmount),
               approveAllowance: () =>
@@ -228,15 +237,15 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
       }, new Map<string, AssetPosition>())
     );
 
-    // collaterals and target token
-    const collateralAssets = assetList.filter((asset) => asset.canBeCollateral);
+    // borrowables  and target token
+    const collateralAssets = assetList.filter((asset) => asset.borrowable);
     setCollateralAssets(collateralAssets);
     if (collateralAssets.length > 0) {
       getTokenInfo(collateralAssets[0].token).then((t) => setTargetToken(t));
     }
 
-    // borrowables and pair token
-    const borrowableAssets = assetList.filter((asset) => asset.borrowable);
+    // collaterals and pair token
+    const borrowableAssets = assetList.filter((asset) => asset.canBeCollateral);
     setBorrowableAssets(borrowableAssets);
     if (borrowableAssets.length > 0) {
       getTokenInfo(borrowableAssets[0].token).then((t) => setPairToken(t));
@@ -244,16 +253,16 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
     setOpen(true);
   };
   const handleClose = () => {
+    setTargetTokenAmount(BigNumber.from(0));
     setOpen(false);
   };
-  const handleTargetTokenAmountSelect = React.useCallback((v: BigNumber) => {
-    if (v.gt(0)) {
-      setTargetTokenAmount(v);
+  const handlePrepareSwap = React.useCallback(() => {
+    if (targetTokenAmount.gt(0)) {
       setExpanded(true);
     } else {
       setExpanded(false);
     }
-  }, []);
+  }, [targetTokenAmount]);
 
   return (
     <div>
@@ -301,13 +310,14 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
             </Grid>
             <Grid item xs={12} sm={9}>
               <TokenValueSlider
+                label="Target Token Amount"
                 targetToken={
                   targetToken &&
                   assetMap &&
                   assetMap.get(targetToken.tokenAddress)
                 }
                 maxAmount={maxTargetTokenAmount}
-                setTokenValue={handleTargetTokenAmountSelect}
+                setTokenValue={setTargetTokenAmount}
               />
             </Grid>
             <Grid item xs={12} sm={3}>
@@ -340,20 +350,35 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
             <Grid item xs={12}>
               <Typography gutterBottom>
                 {`Fees: ${
-                  swapVars ? formatEther(swapVars.feeETH) : "--"
+                  swapVars
+                    ? Number(formatEther(swapVars.feeETH)).toFixed(
+                        TOKEN_FIXED_PRECISION
+                      )
+                    : "--"
                 } ether`}
               </Typography>
               <Typography gutterBottom>
                 {`New Health Factor: ${
                   swapVars &&
                   BigNumber.from(swapVars.expectedHealthFactor).lt(BigInt(1e22))
-                    ? formatEther(swapVars.expectedHealthFactor)
+                    ? Number(
+                        formatEther(swapVars.expectedHealthFactor)
+                      ).toFixed(HEALTH_FACTOR_FIXED_PRECISION)
                     : "--"
                 }`}
               </Typography>
             </Grid>
           </Grid>
         </DialogContent>
+        <DialogActions>
+          <Button
+            autoFocus
+            disabled={targetTokenAmount.lte(0) || expanded}
+            onClick={handlePrepareSwap}
+          >
+            prepare swap
+          </Button>
+        </DialogActions>
         <Collapse in={expanded}>
           <DialogContent>
             {approvalSteps && (

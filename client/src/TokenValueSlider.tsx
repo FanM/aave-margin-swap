@@ -7,21 +7,24 @@ import Slider from "@mui/material/Slider";
 import MuiInput from "@mui/material/Input";
 
 import { BigNumber } from "ethers";
-import { AssetPosition } from "./types";
+import { AssetPosition, TOKEN_FIXED_PRECISION } from "./types";
 
 const ETHER_DECIMALS = 18;
+const INPUT_NUMBER_REGEX = `^[0-9]+(\\.[0-9]{1,${TOKEN_FIXED_PRECISION}})?$`;
 
 const Input = styled(MuiInput)`
   width: 120px;
 `;
 
 type TokenValueSliderProps = {
+  label: string;
   targetToken: AssetPosition | undefined;
   maxAmount: number | undefined;
   setTokenValue: (value: BigNumber) => void;
 };
 
 const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
+  label,
   targetToken,
   maxAmount,
   setTokenValue,
@@ -38,23 +41,41 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
   const updateTokenValue = (value: number | number[] | string | string[]) => {
     if (typeof value === "number" || typeof value === "string") {
       const valueStr = value.toString();
+      if (valueStr.indexOf("e") !== -1) {
+        // don't process exponential format
+        return;
+      }
       const pos = valueStr.indexOf(".");
-      const decimals = pos === -1 ? 0 : valueStr.length - pos - 1;
-      let tokenValue = BigNumber.from(valueStr.replace(".", ""));
-      for (let i = 0; i < ETHER_DECIMALS - decimals; i++)
-        tokenValue = tokenValue.mul(10);
-      setTokenValue(tokenValue);
+      let tokenValue: string;
+      if (pos === -1) {
+        // an integer, pad ETHER_DECIMALS of 0 to the end
+        tokenValue = valueStr.padEnd(valueStr.length + ETHER_DECIMALS, "0");
+      } else {
+        // a float
+        tokenValue = valueStr.replace(".", "");
+        const decimals = valueStr.length - pos - 1;
+        // pad 0 until the fraction part reaches the length of ETHER_DECIMALS
+        tokenValue = tokenValue.padEnd(pos + ETHER_DECIMALS, "0");
+        if (decimals > ETHER_DECIMALS) {
+          // if the length of the fraction part exceeds ETHER_DECIMALS, truncate it
+          tokenValue = tokenValue.substring(0, pos + ETHER_DECIMALS);
+        }
+      }
+      setTokenValue(BigNumber.from(tokenValue));
     }
   };
 
   const handleSliderChange = (event: Event, newValue: number | number[]) => {
-    setValue(newValue);
-    updateTokenValue(newValue);
+    if (typeof newValue === "number") {
+      setValue(newValue.toFixed(TOKEN_FIXED_PRECISION));
+      updateTokenValue(newValue);
+    }
   };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = event.target.value;
-    const valid = /^[0-9]+(.([0-9]{0,8}))?$/i.test(inputValue);
+
+    const valid = inputValue.match(INPUT_NUMBER_REGEX);
     if (valid) {
       setValue(Number(inputValue));
       updateTokenValue(inputValue);
@@ -77,7 +98,10 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
       {maxAmount && targetToken && (
         <div>
           <Typography id="input-slider" gutterBottom>
-            {`Target Token Amount (Max ${maxAmount} ${targetToken.symbol})`}
+            {label +
+              ` (Max ${maxAmount.toFixed(TOKEN_FIXED_PRECISION)} ${
+                targetToken.symbol
+              })`}
           </Typography>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={5} sm={4}>
@@ -101,7 +125,7 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
                 onBlur={handleBlur}
                 error={inputError}
                 inputProps={{
-                  step: maxAmount / 100,
+                  step: (maxAmount / 100).toFixed(TOKEN_FIXED_PRECISION),
                   min: 0,
                   max: maxAmount,
                   type: "number",
