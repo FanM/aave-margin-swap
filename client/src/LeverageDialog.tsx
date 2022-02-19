@@ -16,14 +16,15 @@ import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter
 import ProtocolDataProviderContract from "./contracts/IProtocolDataProvider.sol/IProtocolDataProvider.json";
 import IDebtTokenContract from "./contracts/IDebtToken.sol/IDebtToken.json";
 
+import { SupportedNetwork, envObj } from "./env";
+import { AssetPosition, TokenInfo, TokenAddresses, SwapVars } from "./types";
 import {
-  AssetPosition,
-  TokenInfo,
-  TokenAddresses,
-  SwapVars,
   TOKEN_FIXED_PRECISION,
   HEALTH_FACTOR_FIXED_PRECISION,
-} from "./types";
+  NATIVE_TOKEN_SYMBOL,
+  PAY_BY_ETHER_SKEW,
+  getNativeETHAmount,
+} from "./utils";
 import { BootstrapDialog, BootstrapDialogTitle } from "./DialogComponents";
 import TokenSelect from "./TokenSelect";
 import SlippageSelect, { SLIPPAGE_BASE_UINT } from "./SlippageSelect";
@@ -65,7 +66,8 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   const [useVariableRate, setUseVariableRate] = React.useState(true);
   const [maxTargetTokenAmount, setMaxTargetTokenAmount] =
     React.useState<number>();
-  const [swapVars, setSwapVars] = React.useState<SwapVars>();
+  const [fee, setFee] = React.useState<BigNumber[]>();
+  const [healthFactor, setHealthFactor] = React.useState<number>();
   const [open, setOpen] = React.useState(false);
   const [expanded, setExpanded] = React.useState(false);
 
@@ -77,7 +79,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   );
 
   const calculateMaxLoanAmount = React.useCallback(
-    (maxLoanETH: string, token: TokenInfo, priceOracle: Contract) => {
+    (maxLoanETH: BigNumber, token: TokenInfo, priceOracle: Contract) => {
       priceOracle.methods
         .getAssetPrice(token.tokenAddress)
         .call()
@@ -97,7 +99,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   React.useEffect(() => {
     const updateHealthFactor = async () => {
       if (priceOracle && targetToken && pairToken) {
-        const swapVars = await aaveManager.methods
+        const swapVars: SwapVars = await aaveManager.methods
           .checkAndCalculateSwapVars(
             targetToken,
             targetTokenAmount,
@@ -107,7 +109,15 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           )
           .call({ from: account });
         calculateMaxLoanAmount(swapVars.maxLoanETH, targetToken, priceOracle);
-        setSwapVars(swapVars);
+        const healthFactor = Number(formatEther(swapVars.expectedHealthFactor));
+        setHealthFactor(healthFactor);
+        const feeETH = BigNumber.from(swapVars.feeETH).add(PAY_BY_ETHER_SKEW);
+        const feeNative = await getNativeETHAmount(feeETH, priceOracle);
+        if (feeETH.eq(feeNative)) {
+          setFee([feeETH]);
+        } else {
+          setFee([feeETH, feeNative]);
+        }
       }
     };
     updateHealthFactor();
@@ -143,7 +153,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           useVariableRate ? 2 : 1,
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
-        .send({ from: account, value: swapVars!.feeETH });
+        .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] });
     }
   }, [
     aaveManager,
@@ -153,7 +163,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
     pairToken,
     useVariableRate,
     slippage,
-    swapVars,
+    fee,
     account,
   ]);
 
@@ -194,9 +204,11 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
             )!.symbol;
             const step: ApprovalStep = {
               label: `Approve Delegation (${targetTokenSymbol})`,
-              description: `Approve contract to borrow ${formatEther(
-                targetTokenAmount
-              )} amount of ${targetTokenSymbol} on behalf of you.`,
+              description: `Approve contract to borrow ${Number(
+                formatEther(targetTokenAmount)
+              ).toFixed(
+                TOKEN_FIXED_PRECISION
+              )} ${targetTokenSymbol} on behalf of you.`,
               checkAllowance: () =>
                 checkAllowance(tokenContract, targetTokenAmount),
               approveAllowance: () =>
@@ -221,13 +233,21 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
     setPriceOracle(
       new web3.eth.Contract(
         PriceOracleContract.abi as AbiItem[],
-        process.env.REACT_APP_PRICE_ORACLE_CONTRACT
+        envObj[
+          SupportedNetwork[
+            process.env.REACT_APP_NETWORK! as keyof typeof SupportedNetwork
+          ]
+        ].priceOracleContract
       )
     );
     setDataProvider(
       new web3.eth.Contract(
         ProtocolDataProviderContract.abi as AbiItem[],
-        process.env.REACT_APP_POTOCOL_DATA_PROVIDER_CONTRACT
+        envObj[
+          SupportedNetwork[
+            process.env.REACT_APP_NETWORK! as keyof typeof SupportedNetwork
+          ]
+        ].protocalDataProviderContract
       )
     );
     setAssetMap(
@@ -349,23 +369,28 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
             </Grid>
             <Grid item xs={12}>
               <Typography gutterBottom>
-                {`Fees: ${
-                  swapVars
-                    ? Number(formatEther(swapVars.feeETH)).toFixed(
-                        TOKEN_FIXED_PRECISION
-                      )
-                    : "--"
-                } ether`}
+                Estimated Fees:{" "}
+                {fee
+                  ? `${Number(formatEther(fee[0])).toFixed(
+                      TOKEN_FIXED_PRECISION
+                    )} ether ${
+                      fee.length > 1
+                        ? `(${Number(formatEther(fee[1])).toFixed(
+                            TOKEN_FIXED_PRECISION
+                          )} ${NATIVE_TOKEN_SYMBOL})`
+                        : ""
+                    }`
+                  : "--"}
               </Typography>
               <Typography gutterBottom>
-                {`New Health Factor: ${
-                  swapVars &&
-                  BigNumber.from(swapVars.expectedHealthFactor).lt(BigInt(1e22))
-                    ? Number(
-                        formatEther(swapVars.expectedHealthFactor)
-                      ).toFixed(HEALTH_FACTOR_FIXED_PRECISION)
-                    : "--"
-                }`}
+                New Health Factor:{" "}
+                {healthFactor
+                  ? `${
+                      healthFactor <= 1e7
+                        ? healthFactor.toFixed(HEALTH_FACTOR_FIXED_PRECISION)
+                        : "--"
+                    }`
+                  : "--"}
               </Typography>
             </Grid>
           </Grid>

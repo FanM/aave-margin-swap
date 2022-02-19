@@ -15,7 +15,8 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 
-import { AssetPosition, TOKEN_FIXED_PRECISION } from "./types";
+import { AssetPosition } from "./types";
+import { TOKEN_FIXED_PRECISION } from "./utils";
 import LeverageDialog from "./LeverageDialog";
 import DeleverageDialog from "./DeleverageDialog";
 import AaveManagerContract from "./contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";

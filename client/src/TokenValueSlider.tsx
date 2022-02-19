@@ -7,9 +7,9 @@ import Slider from "@mui/material/Slider";
 import MuiInput from "@mui/material/Input";
 
 import { BigNumber } from "ethers";
-import { AssetPosition, TOKEN_FIXED_PRECISION } from "./types";
+import { AssetPosition } from "./types";
+import { WEI_DECIMALS, TOKEN_FIXED_PRECISION } from "./utils";
 
-const ETHER_DECIMALS = 18;
 const INPUT_NUMBER_REGEX = `^[0-9]+(\\.[0-9]{1,${TOKEN_FIXED_PRECISION}})?$`;
 
 const Input = styled(MuiInput)`
@@ -49,16 +49,16 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
       let tokenValue: string;
       if (pos === -1) {
         // an integer, pad ETHER_DECIMALS of 0 to the end
-        tokenValue = valueStr.padEnd(valueStr.length + ETHER_DECIMALS, "0");
+        tokenValue = valueStr.padEnd(valueStr.length + WEI_DECIMALS, "0");
       } else {
         // a float
         tokenValue = valueStr.replace(".", "");
         const decimals = valueStr.length - pos - 1;
         // pad 0 until the fraction part reaches the length of ETHER_DECIMALS
-        tokenValue = tokenValue.padEnd(pos + ETHER_DECIMALS, "0");
-        if (decimals > ETHER_DECIMALS) {
+        tokenValue = tokenValue.padEnd(pos + WEI_DECIMALS, "0");
+        if (decimals > WEI_DECIMALS) {
           // if the length of the fraction part exceeds ETHER_DECIMALS, truncate it
-          tokenValue = tokenValue.substring(0, pos + ETHER_DECIMALS);
+          tokenValue = tokenValue.substring(0, pos + WEI_DECIMALS);
         }
       }
       setTokenValue(BigNumber.from(tokenValue));

@@ -19,6 +19,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 
+import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter.json";
 import ProtocolDataProviderContract from "./contracts/IProtocolDataProvider.sol/IProtocolDataProvider.json";
 import IERC20Contract from "./contracts/IERC20.sol/IERC20.json";
 
@@ -29,13 +30,19 @@ import {
   RepayVars,
   tuple,
 } from "./types";
+import {
+  WEI_DECIMALS,
+  TOKEN_FIXED_PRECISION,
+  HEALTH_FACTOR_FIXED_PRECISION,
+  NATIVE_TOKEN_SYMBOL,
+  getNativeETHAmount,
+} from "./utils";
 import { BootstrapDialog, BootstrapDialogTitle } from "./DialogComponents";
 import TokenValueSlider from "./TokenValueSlider";
 import SlippageSelect, { SLIPPAGE_BASE_UINT } from "./SlippageSelect";
 import RadioButtonsGroup from "./RadioButton";
 import ApprovalStepper, { ApprovalStep } from "./ApprovalStepper";
-
-const WEI_DECIMALS = 18;
+import { envObj, SupportedNetwork } from "./env";
 
 type AssetPaneProps = {
   assets: AssetPosition[] | undefined;
@@ -100,6 +107,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
   borrowRateMode,
 }) => {
   const [dataProvider, setDataProvider] = React.useState<Contract>();
+  const [priceOracle, setPriceOracle] = React.useState<Contract>();
   const [collateralReducedAmounts, setCollateralReducedAmounts] =
     React.useState<Array<BigNumber>>();
   const [approvalSteps, setApprovalSteps] = React.useState<ApprovalStep[]>();
@@ -109,7 +117,8 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
   );
   const [payFeeByCollateral, setPayFeeByCollateral] = React.useState(true);
   const [slippage, setSlippage] = React.useState<number>(2);
-  const [repayVars, setRepayVars] = React.useState<RepayVars>();
+  const [fee, setFee] = React.useState<BigNumber[]>();
+  const [healthFactor, setHealthFactor] = React.useState<number>();
   const [errorMessage, setErrorMessage] = React.useState<string>();
   const [open, setOpen] = React.useState(false);
   const [expanded, setExpanded] = React.useState(false);
@@ -141,7 +150,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
 
   React.useEffect(() => {
     const updateHealthFactor = async () => {
-      if (targetTokenInfo) {
+      if (targetTokenInfo && priceOracle) {
         const [assetInfos, amounts] = await buildToBeReducedCollaterals();
         const repayVars: RepayVars = await aaveManager.methods
           .checkAndCalculateRepayVars(
@@ -154,9 +163,10 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
             payFeeByCollateral
           )
           .call({ from: account });
-        if (
-          BigNumber.from(repayVars.expectedHealthFactor).div(WEI_DECIMALS).lt(1)
-        ) {
+        const healthFactor = Number(
+          formatEther(repayVars.expectedHealthFactor)
+        );
+        if (healthFactor < 1) {
           setErrorMessage("Health Factor is less than 1");
         } else if (
           BigNumber.from(repayVars.totalCollateralReducedETH).lt(
@@ -167,13 +177,21 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
         } else {
           setErrorMessage(undefined);
         }
-        setRepayVars(repayVars);
+        setHealthFactor(healthFactor);
+        const feeETH = BigNumber.from(repayVars.feeETH);
+        const feeNative = await getNativeETHAmount(feeETH, priceOracle);
+        if (feeETH.eq(feeNative)) {
+          setFee([feeETH]);
+        } else {
+          setFee([feeETH, feeNative]);
+        }
       }
     };
     updateHealthFactor();
   }, [
     aaveManager,
     account,
+    priceOracle,
     targetTokenInfo,
     targetTokenAmount,
     slippage,
@@ -183,10 +201,24 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
   ]);
 
   const handleClickOpen = () => {
+    setPriceOracle(
+      new web3.eth.Contract(
+        PriceOracleContract.abi as AbiItem[],
+        envObj[
+          SupportedNetwork[
+            process.env.REACT_APP_NETWORK! as keyof typeof SupportedNetwork
+          ]
+        ].priceOracleContract
+      )
+    );
     setDataProvider(
       new web3.eth.Contract(
         ProtocolDataProviderContract.abi as AbiItem[],
-        process.env.REACT_APP_POTOCOL_DATA_PROVIDER_CONTRACT
+        envObj[
+          SupportedNetwork[
+            process.env.REACT_APP_NETWORK! as keyof typeof SupportedNetwork
+          ]
+        ].protocalDataProviderContract
       )
     );
     getTokenInfo(targetToken.token).then((t: TokenInfo) => {
@@ -238,7 +270,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           borrowRateMode,
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
-        .send({ from: account, value: repayVars!.feeETH });
+        .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] });
     }
   }, [
     aaveManager,
@@ -247,7 +279,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
     targetTokenAmount,
     borrowRateMode,
     slippage,
-    repayVars,
+    fee,
     account,
     buildToBeReducedCollaterals,
   ]);
@@ -298,9 +330,11 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
         );
         const step: ApprovalStep = {
           label: `Approve aToken Transfer (a${assetSymbols[i]})`,
-          description: `Approve contract to transfer ${formatEther(
-            amounts[i]
-          )} amount of ${assetSymbols[i]} aTokens on behalf of you.`,
+          description: `Approve contract to transfer ${Number(
+            formatEther(amounts[i])
+          ).toFixed(TOKEN_FIXED_PRECISION)} a${
+            assetSymbols[i]
+          } on behalf of you.`,
           checkAllowance: () =>
             checkAllowance(tokenContract, amountInTokenUnit),
           approveAllowance: () =>
@@ -379,19 +413,24 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
             </Grid>
             <Grid item xs={12}>
               <Typography gutterBottom>
-                {`Fees: ${
-                  repayVars ? formatEther(repayVars.feeETH) : "--"
-                } ether`}
+                Expected Fees:{" "}
+                {fee
+                  ? `${formatEther(fee[0])} ether ${
+                      fee.length > 1
+                        ? `(${formatEther(fee[1])} ${NATIVE_TOKEN_SYMBOL})`
+                        : ""
+                    }`
+                  : "--"}
               </Typography>
               <Typography gutterBottom>
-                {`New Health Factor: ${
-                  repayVars &&
-                  BigNumber.from(repayVars.expectedHealthFactor).lt(
-                    BigInt(1e22)
-                  )
-                    ? formatEther(repayVars.expectedHealthFactor)
-                    : "--"
-                }`}
+                New Health Factor:{" "}
+                {healthFactor
+                  ? `${
+                      healthFactor <= 1e7
+                        ? healthFactor.toFixed(HEALTH_FACTOR_FIXED_PRECISION)
+                        : "--"
+                    }`
+                  : "--"}
               </Typography>
               <Typography gutterBottom>{errorMessage}</Typography>
             </Grid>
