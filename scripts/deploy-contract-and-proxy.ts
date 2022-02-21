@@ -18,13 +18,13 @@ async function main() {
   // manually to make sure everything is compiled
   // await hre.run('compile');
   const [deployerAccount] = await ethers.getSigners();
+  const deployerAddress = await deployerAccount.getAddress();
+  console.debug("Deployer address: ", deployerAddress);
 
   if (process.env.PROXY_ADMIN_ADDRESS === undefined) {
     console.error("Please set PROXY_ADMIN_ADDRESS ENV variable first.");
     return;
-  } else if (
-    process.env.PROXY_ADMIN_ADDRESS === (await deployerAccount.getAddress())
-  ) {
+  } else if (process.env.PROXY_ADMIN_ADDRESS === deployerAddress) {
     console.error("PROXY_ADMIN_ADDRESS cannot be the deployer account.");
     return;
   }

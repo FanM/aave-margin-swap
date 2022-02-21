@@ -436,7 +436,7 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     try
       SUSHI_ROUTER.swapExactTokensForTokens(
         amountIn,
-        1, //amountOutMin,
+        amountOutMin,
         _getSushiSwapTokenPath(inToken.tokenAddress, outToken.tokenAddress),
         onBehalfOf,
         block.timestamp

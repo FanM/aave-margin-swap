@@ -1,11 +1,20 @@
 import * as dotenv from "dotenv";
 
+import { BigNumber } from "ethers";
 import { HardhatUserConfig, task } from "hardhat/config";
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-waffle";
+import "@nomiclabs/hardhat-web3";
 import "@typechain/hardhat";
 import "hardhat-gas-reporter";
+import { AbiItem } from "web3-utils";
 import "solidity-coverage";
+
+import AaveManagerContract from "./client/src/contracts/AaveLeveragedSwapManager.sol/AaveLeveragedSwapManager.json";
+import ProtocolDataProviderContract from "./client/src/contracts/IProtocolDataProvider.sol/IProtocolDataProvider.json";
+import IDebtTokenContract from "./client/src/contracts/IDebtToken.sol/IDebtToken.json";
+
+import { ProtocalDataProvider } from "./.env.polygon.json";
 
 dotenv.config();
 
@@ -17,6 +26,49 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
   for (const account of accounts) {
     console.log(account.address);
   }
+});
+
+task("swap", "Make a leveraged swap", async (taskArgs, hre) => {
+  const [admin, user] = await hre.ethers.getSigners();
+  const userAddress = await user.getAddress();
+  console.log("User address: ", userAddress);
+
+  const targetTokenAddr = "";
+  const targetTokenAmount = BigNumber.from(10).pow(18);
+  const pairTokenAddr = "";
+  const deployedContract = process.env.AAVE_MANAGER_PROXY_ADDR;
+
+  const aaveContract = new hre.web3.eth.Contract(
+    AaveManagerContract.abi as AbiItem[],
+    deployedContract
+  );
+  const protocolDataProvider = new hre.web3.eth.Contract(
+    ProtocolDataProviderContract.abi as AbiItem[],
+    ProtocalDataProvider
+  );
+  const targetDebtTokenAddress = (
+    await protocolDataProvider.methods
+      .getReserveTokensAddresses(targetTokenAddr)
+      .call()
+  ).variableDebtTokenAddress;
+
+  const targetIDebtToken = new hre.web3.eth.Contract(
+    IDebtTokenContract.abi as AbiItem[],
+    targetDebtTokenAddress
+  );
+  await targetIDebtToken.methods
+    .approveDelegation(deployedContract, targetTokenAmount)
+    .send({ from: userAddress });
+
+  const targetToken = await aaveContract.methods
+    .getTokenInfo(targetTokenAddr)
+    .call();
+  const pairToken = await aaveContract.methods
+    .getTokenInfo(pairTokenAddr)
+    .call();
+  await aaveContract.methods
+    .swapPreapprovedAssets(targetToken, targetTokenAmount, pairToken, 2, 200)
+    .send({ from: userAddress });
 });
 
 // You need to export an object to set up your config
@@ -48,15 +100,15 @@ const config: HardhatUserConfig = {
             : "",
       },
       accounts:
-        process.env.PRIVATE_KEY_1 !== undefined &&
-        process.env.PRIVATE_KEY_2 !== undefined
+        process.env.PRIVATE_KEY_ADMIN !== undefined &&
+        process.env.PRIVATE_KEY_USER !== undefined
           ? [
               {
-                privateKey: process.env.PRIVATE_KEY_1!,
+                privateKey: process.env.PRIVATE_KEY_ADMIN!,
                 balance: "100000000000000000000",
               },
               {
-                privateKey: process.env.PRIVATE_KEY_2!,
+                privateKey: process.env.PRIVATE_KEY_USER!,
                 balance: "100000000000000000000",
               },
             ]
