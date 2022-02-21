@@ -274,6 +274,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   };
   const handleClose = () => {
     setTargetTokenAmount(BigNumber.from(0));
+    setExpanded(false);
     setOpen(false);
   };
   const handlePrepareSwap = React.useCallback(() => {
@@ -370,27 +371,36 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
             <Grid item xs={12}>
               <Typography gutterBottom>
                 Estimated Fees:{" "}
-                {fee
-                  ? `${Number(formatEther(fee[0])).toFixed(
-                      TOKEN_FIXED_PRECISION
-                    )} ether ${
-                      fee.length > 1
-                        ? `(${Number(formatEther(fee[1])).toFixed(
-                            TOKEN_FIXED_PRECISION
-                          )} ${NATIVE_TOKEN_SYMBOL})`
-                        : ""
-                    }`
-                  : "--"}
+                <strong>
+                  {" "}
+                  {fee
+                    ? Number(formatEther(fee[0])).toFixed(TOKEN_FIXED_PRECISION)
+                    : "--"}
+                </strong>{" "}
+                ether{" "}
+                {fee && fee.length > 1 && (
+                  <span>
+                    (
+                    <strong>
+                      {Number(formatEther(fee[1])).toFixed(
+                        TOKEN_FIXED_PRECISION
+                      )}{" "}
+                    </strong>
+                    {NATIVE_TOKEN_SYMBOL})
+                  </span>
+                )}
               </Typography>
               <Typography gutterBottom>
                 New Health Factor:{" "}
-                {healthFactor
-                  ? `${
-                      healthFactor <= 1e7
-                        ? healthFactor.toFixed(HEALTH_FACTOR_FIXED_PRECISION)
-                        : "--"
-                    }`
-                  : "--"}
+                <strong>
+                  {healthFactor
+                    ? `${
+                        healthFactor <= 1e7
+                          ? healthFactor.toFixed(HEALTH_FACTOR_FIXED_PRECISION)
+                          : "--"
+                      }`
+                    : "--"}
+                </strong>
               </Typography>
             </Grid>
           </Grid>

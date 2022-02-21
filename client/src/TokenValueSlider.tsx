@@ -98,10 +98,9 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
       {maxAmount && targetToken && (
         <div>
           <Typography id="input-slider" gutterBottom>
-            {label +
-              ` (Max ${maxAmount.toFixed(TOKEN_FIXED_PRECISION)} ${
-                targetToken.symbol
-              })`}
+            {label} Max (
+            <strong>{maxAmount.toFixed(TOKEN_FIXED_PRECISION)}</strong>{" "}
+            {targetToken.symbol})
           </Typography>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={5} sm={4}>

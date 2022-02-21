@@ -413,24 +413,37 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
             </Grid>
             <Grid item xs={12}>
               <Typography gutterBottom>
-                Expected Fees:{" "}
-                {fee
-                  ? `${formatEther(fee[0])} ether ${
-                      fee.length > 1
-                        ? `(${formatEther(fee[1])} ${NATIVE_TOKEN_SYMBOL})`
-                        : ""
-                    }`
-                  : "--"}
+                Estimated Fees:{" "}
+                <strong>
+                  {" "}
+                  {fee
+                    ? Number(formatEther(fee[0])).toFixed(TOKEN_FIXED_PRECISION)
+                    : "--"}
+                </strong>{" "}
+                ether{" "}
+                {fee && fee.length > 1 && (
+                  <span>
+                    (
+                    <strong>
+                      {Number(formatEther(fee[1])).toFixed(
+                        TOKEN_FIXED_PRECISION
+                      )}{" "}
+                    </strong>
+                    {NATIVE_TOKEN_SYMBOL})
+                  </span>
+                )}
               </Typography>
               <Typography gutterBottom>
                 New Health Factor:{" "}
-                {healthFactor
-                  ? `${
-                      healthFactor <= 1e7
-                        ? healthFactor.toFixed(HEALTH_FACTOR_FIXED_PRECISION)
-                        : "--"
-                    }`
-                  : "--"}
+                <strong>
+                  {healthFactor
+                    ? `${
+                        healthFactor <= 1e7
+                          ? healthFactor.toFixed(HEALTH_FACTOR_FIXED_PRECISION)
+                          : "--"
+                      }`
+                    : "--"}
+                </strong>
               </Typography>
               <Typography gutterBottom>{errorMessage}</Typography>
             </Grid>
