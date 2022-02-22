@@ -1,6 +1,5 @@
 import * as React from "react";
 import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
 import Stepper from "@mui/material/Stepper";
 import Step from "@mui/material/Step";
 import StepLabel from "@mui/material/StepLabel";
@@ -17,14 +16,12 @@ export type ApprovalStep = {
 
 type ApprovalStepperProps = {
   steps: ApprovalStep[];
-  label: string;
-  action: () => Promise<void>;
+  finalizeApproval: () => void;
 };
 
 const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
   steps,
-  label,
-  action,
+  finalizeApproval,
 }) => {
   const [activeStep, setActiveStep] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
@@ -40,9 +37,10 @@ const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
         }
       }
       setActiveStep(i);
+      finalizeApproval();
     };
     getActiveStep();
-  }, [steps]);
+  }, [steps, finalizeApproval]);
 
   const handleNext = () => {
     const step = steps[activeStep];
@@ -51,13 +49,6 @@ const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
       setLoading(false);
       setActiveStep(activeStep + 1);
     });
-  };
-
-  const handleSubmit = () => {
-    setLoading(true);
-    action()
-      .then()
-      .finally(() => setLoading(false));
   };
 
   return (
@@ -85,19 +76,6 @@ const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
           </Step>
         ))}
       </Stepper>
-      {activeStep === steps.length && (
-        <Paper square elevation={0} sx={{ p: 3 }}>
-          <Typography>{label}</Typography>
-          <LoadingButton
-            loading={loading}
-            variant="contained"
-            onClick={handleSubmit}
-            sx={{ mt: 1, mr: 1 }}
-          >
-            sumbit
-          </LoadingButton>
-        </Paper>
-      )}
     </Box>
   );
 };

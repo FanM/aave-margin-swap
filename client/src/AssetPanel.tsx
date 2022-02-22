@@ -6,6 +6,7 @@ import { useWeb3React } from "@web3-react/core";
 import { formatEther } from "@ethersproject/units";
 
 import { makeStyles, createStyles } from "@mui/styles";
+import { ClassNameMap } from "@mui/styles/withStyles";
 import Grid from "@mui/material/Grid";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -23,8 +24,8 @@ import AaveManagerContract from "./contracts/AaveLeveragedSwapManager.sol/AaveLe
 
 const useStyles = makeStyles(
   createStyles({
-    button: {
-      color: "white",
+    tableHeader: {
+      fontSize: 12,
     },
     paper: {
       backgroundColor: "#cccccc",
@@ -39,21 +40,24 @@ const useStyles = makeStyles(
 
 type AssetPaneProps = {
   assets: AssetPosition[] | undefined;
+  classes: ClassNameMap;
 };
 
-const CollateralPane = (props: AssetPaneProps) => {
+const CollateralPane: React.FC<AssetPaneProps> = ({ assets, classes }) => {
   return (
     <TableContainer component={Paper}>
       <Table sx={{ minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
-            <TableCell>Collateral</TableCell>
-            <TableCell align="right">Amount</TableCell>
+            <TableCell className={classes.tableHeader}>COLLATERAL</TableCell>
+            <TableCell className={classes.tableHeader} align="right">
+              AMOUNT
+            </TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {props.assets &&
-            props.assets.map((asset, index) => (
+          {assets &&
+            assets.map((asset, index) => (
               <TableRow
                 key={index}
                 sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
@@ -80,6 +84,7 @@ type DebtPaneProps = {
   account: string;
   debts: AssetPosition[] | undefined;
   collaterals: AssetPosition[] | undefined;
+  classes: ClassNameMap;
 };
 
 const DebtPane: React.FC<DebtPaneProps> = ({
@@ -88,15 +93,20 @@ const DebtPane: React.FC<DebtPaneProps> = ({
   account,
   debts,
   collaterals,
+  classes,
 }) => {
   return (
     <TableContainer component={Paper}>
       <Table sx={{ minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
-            <TableCell>Asset</TableCell>
-            <TableCell align="right">Stable Debt</TableCell>
-            <TableCell align="right">Variable Debt</TableCell>
+            <TableCell className={classes.tableHeader}>LOAN</TableCell>
+            <TableCell className={classes.tableHeader} align="right">
+              STABLE DEBT
+            </TableCell>
+            <TableCell className={classes.tableHeader} align="right">
+              VARIABLE DEBT
+            </TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -111,12 +121,12 @@ const DebtPane: React.FC<DebtPaneProps> = ({
                 </TableCell>
                 <TableCell align="right">
                   <Grid container spacing={2}>
-                    <Grid item xs={12}>
+                    <Grid item xs={12} lg={6}>
                       {Number(formatEther(asset.stableDebt)).toFixed(
                         TOKEN_FIXED_PRECISION
                       )}
                     </Grid>
-                    <Grid item xs={12}>
+                    <Grid item xs={12} lg={6}>
                       <DeleverageDialog
                         web3={web3}
                         aaveManager={aaveManager}
@@ -133,12 +143,12 @@ const DebtPane: React.FC<DebtPaneProps> = ({
                 </TableCell>
                 <TableCell align="right">
                   <Grid container spacing={2}>
-                    <Grid item xs={12}>
+                    <Grid item xs={12} lg={6}>
                       {Number(formatEther(asset.variableDebt)).toFixed(
                         TOKEN_FIXED_PRECISION
                       )}
                     </Grid>
-                    <Grid item xs={12}>
+                    <Grid item xs={12} lg={6}>
                       <DeleverageDialog
                         web3={web3}
                         aaveManager={aaveManager}
@@ -205,9 +215,9 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
   return (
     <div>
       {aaveMgrContract && assetList && account && (
-        <Grid container spacing={2}>
+        <Grid justifyContent="center" container spacing={2}>
           <Grid item xs={12} sm={6}>
-            <CollateralPane assets={userCollaterals} />
+            <CollateralPane assets={userCollaterals} classes={classes} />
           </Grid>
           <Grid item xs={12} sm={6}>
             <DebtPane
@@ -216,6 +226,7 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
               account={account}
               debts={userDebts}
               collaterals={userCollaterals}
+              classes={classes}
             />
           </Grid>
           <Grid item>

@@ -5,12 +5,14 @@ import { Contract } from "web3-eth-contract";
 import { AbiItem } from "web3-utils";
 import { formatEther } from "@ethersproject/units";
 
-import Collapse from "@mui/material/Collapse";
 import Grid from "@mui/material/Grid";
 import Button from "@mui/material/Button";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import Typography from "@mui/material/Typography";
+import LoadingButton from "@mui/lab/LoadingButton";
+import CircularProgress from "@mui/material/CircularProgress";
+import SwipeableViews from "react-swipeable-views";
 
 import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter.json";
 import ProtocolDataProviderContract from "./contracts/IProtocolDataProvider.sol/IProtocolDataProvider.json";
@@ -69,7 +71,9 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   const [fee, setFee] = React.useState<BigNumber[]>();
   const [healthFactor, setHealthFactor] = React.useState<number>();
   const [open, setOpen] = React.useState(false);
-  const [expanded, setExpanded] = React.useState(false);
+  const [step, setStep] = React.useState(0);
+  const [readyToSwap, setReadyToSwap] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
 
   const getTokenInfo: (t: string) => Promise<TokenInfo> = React.useCallback(
     async (tokenAddress: string) => {
@@ -99,6 +103,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   React.useEffect(() => {
     const updateHealthFactor = async () => {
       if (priceOracle && targetToken && pairToken) {
+        setLoading(true);
         const swapVars: SwapVars = await aaveManager.methods
           .checkAndCalculateSwapVars(
             targetToken,
@@ -107,7 +112,8 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
             SLIPPAGE_BASE_UINT.mul(slippage),
             payFeeByCollateral
           )
-          .call({ from: account });
+          .call({ from: account })
+          .finally(() => setLoading(false));
         calculateMaxLoanAmount(swapVars.maxLoanETH, targetToken, priceOracle);
         const healthFactor = Number(formatEther(swapVars.expectedHealthFactor));
         setHealthFactor(healthFactor);
@@ -134,6 +140,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   ]);
 
   const handleLeveragedSwap = React.useCallback(async () => {
+    setLoading(true);
     if (payFeeByCollateral) {
       return aaveManager!.methods
         .swapPreapprovedAssets(
@@ -143,7 +150,8 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           useVariableRate ? 2 : 1,
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
-        .send({ from: account });
+        .send({ from: account })
+        .finally(() => setLoading(false));
     } else {
       return aaveManager!.methods
         .swapPreapprovedAssets(
@@ -153,7 +161,8 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           useVariableRate ? 2 : 1,
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
-        .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] });
+        .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] })
+        .finally(() => setLoading(false));
     }
   }, [
     aaveManager,
@@ -167,15 +176,15 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
     account,
   ]);
 
-  React.useEffect(() => {
+  const buildApprovalSteps = React.useCallback(() => {
     const checkAllowance = async (
       tokenContract: Contract,
       tokenAmount: BigNumber
     ) => {
-      const balance: string = await tokenContract.methods
+      const allowance: string = await tokenContract.methods
         .borrowAllowance(account, process.env.REACT_APP_DEPLOYED_CONTRACT)
         .call();
-      return BigNumber.from(balance).gte(tokenAmount);
+      return BigNumber.from(allowance).gte(tokenAmount);
     };
 
     const approveAllowance = async (
@@ -187,38 +196,35 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
         .send({ from: account });
     };
 
-    const buildApprovalSteps = () => {
-      if (assetMap && dataProvider && targetToken) {
-        dataProvider.methods
-          .getReserveTokensAddresses(targetToken.tokenAddress)
-          .call()
-          .then((addresses: TokenAddresses) => {
-            const tokenContract = new web3.eth.Contract(
-              IDebtTokenContract.abi as AbiItem[],
-              useVariableRate
-                ? addresses.variableDebtTokenAddress
-                : addresses.stableDebtTokenAddress
-            );
-            const targetTokenSymbol = assetMap.get(
-              targetToken.tokenAddress
-            )!.symbol;
-            const step: ApprovalStep = {
-              label: `Approve Delegation (${targetTokenSymbol})`,
-              description: `Approve contract to borrow ${Number(
-                formatEther(targetTokenAmount)
-              ).toFixed(
-                TOKEN_FIXED_PRECISION
-              )} ${targetTokenSymbol} on behalf of you.`,
-              checkAllowance: () =>
-                checkAllowance(tokenContract, targetTokenAmount),
-              approveAllowance: () =>
-                approveAllowance(tokenContract, targetTokenAmount),
-            };
-            setApprovalSteps([step]);
-          });
-      }
-    };
-    buildApprovalSteps();
+    if (assetMap && dataProvider && targetToken) {
+      dataProvider.methods
+        .getReserveTokensAddresses(targetToken.tokenAddress)
+        .call()
+        .then((addresses: TokenAddresses) => {
+          const tokenContract = new web3.eth.Contract(
+            IDebtTokenContract.abi as AbiItem[],
+            useVariableRate
+              ? addresses.variableDebtTokenAddress
+              : addresses.stableDebtTokenAddress
+          );
+          const targetTokenSymbol = assetMap.get(
+            targetToken.tokenAddress
+          )!.symbol;
+          const step: ApprovalStep = {
+            label: `Approve Delegation (${targetTokenSymbol})`,
+            description: `Approve contract to borrow ${Number(
+              formatEther(targetTokenAmount)
+            ).toFixed(
+              TOKEN_FIXED_PRECISION
+            )} ${targetTokenSymbol} on behalf of you.`,
+            checkAllowance: () =>
+              checkAllowance(tokenContract, targetTokenAmount),
+            approveAllowance: () =>
+              approveAllowance(tokenContract, targetTokenAmount),
+          };
+          setApprovalSteps([step]);
+        });
+    }
   }, [
     web3,
     account,
@@ -274,16 +280,18 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   };
   const handleClose = () => {
     setTargetTokenAmount(BigNumber.from(0));
-    setExpanded(false);
+    setStep(0);
     setOpen(false);
   };
   const handlePrepareSwap = React.useCallback(() => {
-    if (targetTokenAmount.gt(0)) {
-      setExpanded(true);
-    } else {
-      setExpanded(false);
-    }
-  }, [targetTokenAmount]);
+    buildApprovalSteps();
+    setReadyToSwap(false);
+    setStep(1);
+  }, [buildApprovalSteps]);
+
+  const finalizeApproval = React.useCallback(() => {
+    setReadyToSwap(true);
+  }, []);
 
   return (
     <div>
@@ -292,7 +300,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
         disabled={!assetList}
         onClick={handleClickOpen}
       >
-        Leverage
+        create a leverage position
       </Button>
       <BootstrapDialog
         onClose={handleClose}
@@ -305,126 +313,151 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           id="customized-dialog-title"
           onClose={handleClose}
         >
-          CREATE A LEVERAGE SWAP
+          CREATE A LEVERAGE POSITION
         </BootstrapDialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TokenSelect
-                label="Target Token"
-                assets={collateralAssets}
-                tokenAddress={targetToken && targetToken.tokenAddress}
-                selectToken={(tokenAddress) =>
-                  getTokenInfo(tokenAddress).then((t) => setTargetToken(t))
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TokenSelect
-                label="Pair Token"
-                assets={borrowableAssets}
-                tokenAddress={pairToken && pairToken.tokenAddress}
-                selectToken={(tokenAddress) =>
-                  getTokenInfo(tokenAddress).then((t) => setPairToken(t))
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={9}>
-              <TokenValueSlider
-                label="Target Token Amount"
-                targetToken={
-                  targetToken &&
-                  assetMap &&
-                  assetMap.get(targetToken.tokenAddress)
-                }
-                maxAmount={maxTargetTokenAmount}
-                setTokenValue={setTargetTokenAmount}
-              />
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <SlippageSelect
-                label="Slippage"
-                slippage={slippage}
-                slippageOptions={[1, 2, 3, 4, 5]}
-                selectSlippage={setSlippage}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <RadioButtonsGroup
-                groupLabel="Borrow Rate Mode"
-                buttonLable1="Variable Rate"
-                buttonLable2="Stable Rate"
-                setSelectedValue={setUseVariableRate}
-                secondOptionDisabled={
-                  !(targetToken && targetToken.stableBorrowRateEnabled)
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <RadioButtonsGroup
-                groupLabel="Fees"
-                buttonLable1="Pay by Collateral"
-                buttonLable2="Pay by Ether"
-                setSelectedValue={setPayFeeByCollateral}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Typography gutterBottom>
-                Estimated Fees:{" "}
-                <strong>
-                  {" "}
-                  {fee
-                    ? Number(formatEther(fee[0])).toFixed(TOKEN_FIXED_PRECISION)
-                    : "--"}
-                </strong>{" "}
-                ether{" "}
-                {fee && fee.length > 1 && (
-                  <span>
-                    (
-                    <strong>
-                      {Number(formatEther(fee[1])).toFixed(
-                        TOKEN_FIXED_PRECISION
-                      )}{" "}
-                    </strong>
-                    {NATIVE_TOKEN_SYMBOL})
-                  </span>
-                )}
-              </Typography>
-              <Typography gutterBottom>
-                New Health Factor:{" "}
-                <strong>
-                  {healthFactor
-                    ? `${
-                        healthFactor <= 1e7
-                          ? healthFactor.toFixed(HEALTH_FACTOR_FIXED_PRECISION)
-                          : "--"
-                      }`
-                    : "--"}
-                </strong>
-              </Typography>
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            autoFocus
-            disabled={targetTokenAmount.lte(0) || expanded}
-            onClick={handlePrepareSwap}
-          >
-            prepare swap
-          </Button>
-        </DialogActions>
-        <Collapse in={expanded}>
-          <DialogContent>
-            {approvalSteps && (
-              <ApprovalStepper
-                steps={approvalSteps}
-                label="All set. Now swap your assets"
-                action={handleLeveragedSwap}
-              />
-            )}
-          </DialogContent>
-        </Collapse>
+        <SwipeableViews index={step}>
+          <div key={"leverage-prepare-swap"}>
+            <DialogContent dividers>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TokenSelect
+                    label="Target Token"
+                    assets={collateralAssets}
+                    tokenAddress={targetToken && targetToken.tokenAddress}
+                    selectToken={(tokenAddress) =>
+                      getTokenInfo(tokenAddress).then((t) => setTargetToken(t))
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TokenSelect
+                    label="Pair Token"
+                    assets={borrowableAssets}
+                    tokenAddress={pairToken && pairToken.tokenAddress}
+                    selectToken={(tokenAddress) =>
+                      getTokenInfo(tokenAddress).then((t) => setPairToken(t))
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={12}>
+                  <TokenValueSlider
+                    label="Target Token Amount"
+                    targetToken={
+                      targetToken &&
+                      assetMap &&
+                      assetMap.get(targetToken.tokenAddress)
+                    }
+                    maxAmount={maxTargetTokenAmount}
+                    setTokenValue={setTargetTokenAmount}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <RadioButtonsGroup
+                    groupLabel="Borrow Rate Mode"
+                    buttonLable1="Variable Rate"
+                    buttonLable2="Stable Rate"
+                    setSelectedValue={setUseVariableRate}
+                    secondOptionDisabled={
+                      !(targetToken && targetToken.stableBorrowRateEnabled)
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <RadioButtonsGroup
+                    groupLabel="Fees"
+                    buttonLable1="Pay by Collateral"
+                    buttonLable2="Pay by Ether"
+                    setSelectedValue={setPayFeeByCollateral}
+                  />
+                </Grid>
+                <Grid item sx={{ mt: 2 }} xs={12} sm={3}>
+                  <SlippageSelect
+                    label="Slippage"
+                    slippage={slippage}
+                    slippageOptions={[1, 2, 3, 4, 5]}
+                    selectSlippage={setSlippage}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography gutterBottom>
+                    Estimated Fees:{" "}
+                    {loading ? (
+                      <CircularProgress size={15} />
+                    ) : (
+                      <strong>
+                        {" "}
+                        {fee
+                          ? Number(formatEther(fee[0])).toFixed(
+                              TOKEN_FIXED_PRECISION
+                            )
+                          : "--"}
+                      </strong>
+                    )}{" "}
+                    ether{" "}
+                    {!loading && fee && fee.length > 1 && (
+                      <span>
+                        (
+                        <strong>
+                          {Number(formatEther(fee[1])).toFixed(
+                            TOKEN_FIXED_PRECISION
+                          )}{" "}
+                        </strong>
+                        {NATIVE_TOKEN_SYMBOL})
+                      </span>
+                    )}
+                  </Typography>
+                  <Typography gutterBottom>
+                    New Health Factor:{" "}
+                    {loading ? (
+                      <CircularProgress size={10} />
+                    ) : (
+                      <strong>
+                        {healthFactor
+                          ? `${
+                              healthFactor <= 1e7
+                                ? healthFactor.toFixed(
+                                    HEALTH_FACTOR_FIXED_PRECISION
+                                  )
+                                : "--"
+                            }`
+                          : "--"}
+                      </strong>
+                    )}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                autoFocus
+                disabled={targetTokenAmount.lte(0)}
+                onClick={handlePrepareSwap}
+              >
+                next
+              </Button>
+            </DialogActions>
+          </div>
+          <div key={"leverage-swap"}>
+            <DialogContent dividers>
+              {approvalSteps && (
+                <ApprovalStepper
+                  steps={approvalSteps}
+                  finalizeApproval={finalizeApproval}
+                />
+              )}
+            </DialogContent>
+            <DialogActions>
+              <LoadingButton
+                disabled={!readyToSwap}
+                loading={loading}
+                onClick={handleLeveragedSwap}
+              >
+                sumbit
+              </LoadingButton>
+              <Button onClick={() => setStep(0)}>back</Button>
+            </DialogActions>
+          </div>
+        </SwipeableViews>
       </BootstrapDialog>
     </div>
   );

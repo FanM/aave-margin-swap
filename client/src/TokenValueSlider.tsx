@@ -94,16 +94,14 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
   };
 
   return (
-    <Box sx={{ width: 450 }}>
+    <Box sx={{ minWidth: 450 }}>
       {maxAmount && targetToken && (
         <div>
           <Typography id="input-slider" gutterBottom>
-            {label} Max (
-            <strong>{maxAmount.toFixed(TOKEN_FIXED_PRECISION)}</strong>{" "}
-            {targetToken.symbol})
+            {label}
           </Typography>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={5} sm={4}>
+            <Grid item sx={{ ml: 0.5 }} xs={5} sm={3}>
               <Slider
                 value={
                   typeof value === "number" || typeof value === "string"
@@ -116,7 +114,12 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
                 aria-labelledby="input-slider"
               />
             </Grid>
-            <Grid item xs={7} sm={8}>
+            <Grid item xs={4} sm={3}>
+              <Typography id="max-amount">
+                {maxAmount.toFixed(TOKEN_FIXED_PRECISION)}
+              </Typography>
+            </Grid>
+            <Grid item xs={4} sm={2}>
               <Input
                 value={value}
                 size="small"
@@ -131,6 +134,9 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
                   "aria-labelledby": "input-slider",
                 }}
               />
+            </Grid>
+            <Grid item sx={{ ml: -1 }} xs={1} sm={1}>
+              <Typography id="token-symbol">{targetToken.symbol}</Typography>
             </Grid>
           </Grid>
         </div>

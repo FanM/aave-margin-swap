@@ -8,6 +8,8 @@ import IconButton from "@mui/material/IconButton";
 import ExchangeIcon from "@mui/icons-material/CurrencyExchange";
 import Snackbar from "@mui/material/Snackbar";
 import MuiAlert, { AlertProps } from "@mui/material/Alert";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { lightBlue, purple } from "@mui/material/colors";
 
 import {
   Web3ReactProvider,
@@ -53,17 +55,21 @@ function getLibrary(provider: any): Web3Provider {
   return library;
 }
 
+const colorTheme = createTheme({
+  palette: {
+    primary: {
+      main: purple[800],
+      contrastText: lightBlue[200],
+    },
+  },
+});
+
 const AppToolBar = () => {
   const { connector, activate, deactivate, active, error } =
     useWeb3React<Web3Provider>();
-  //const [activatingConnector, setActivatingConnector] =
-  //  useState<AbstractConnector>();
   const [web3, setWeb3] = React.useState<Web3>();
   // handle logic to recognize the connector currently being activated
   React.useEffect(() => {
-    //if (activatingConnector && activatingConnector === connector) {
-    //  setActivatingConnector(undefined);
-    //}
     if (active) {
       connector!.getProvider().then((p) => {
         setWeb3(new Web3(p));
@@ -76,15 +82,6 @@ const AppToolBar = () => {
   // handle logic to connect in reaction to certain events on the injected ethereum provider, if it exists
   useInactiveListener(!triedEager);
 
-  //const activateConnector = (name: ConnectorNames) => {
-  //  const currentConnector = connectorsByName[name];
-  //  activate(currentConnector).then(() => {
-  //    setActivatingConnector(connector);
-  //  });
-  //};
-  //const deactivateConnector = () => {
-  //  deactivate();
-  //};
   const handleErrorMsgClose = (
     event?: React.SyntheticEvent | Event,
     reason?: string
@@ -136,7 +133,9 @@ const AppToolBar = () => {
 export default function HeaderBar() {
   return (
     <Web3ReactProvider getLibrary={getLibrary}>
-      <AppToolBar />
+      <ThemeProvider theme={colorTheme}>
+        <AppToolBar />
+      </ThemeProvider>
     </Web3ReactProvider>
   );
 }

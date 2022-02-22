@@ -5,8 +5,8 @@ import { Contract } from "web3-eth-contract";
 import { AbiItem } from "web3-utils";
 import { formatEther } from "@ethersproject/units";
 
+import { makeStyles, createStyles } from "@mui/styles";
 import Paper from "@mui/material/Paper";
-import Collapse from "@mui/material/Collapse";
 import Grid from "@mui/material/Grid";
 import Button from "@mui/material/Button";
 import DialogActions from "@mui/material/DialogActions";
@@ -18,6 +18,9 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import LoadingButton from "@mui/lab/LoadingButton";
+import CircularProgress from "@mui/material/CircularProgress";
+import SwipeableViews from "react-swipeable-views";
 
 import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter.json";
 import ProtocolDataProviderContract from "./contracts/IProtocolDataProvider.sol/IProtocolDataProvider.json";
@@ -44,19 +47,31 @@ import RadioButtonsGroup from "./RadioButton";
 import ApprovalStepper, { ApprovalStep } from "./ApprovalStepper";
 import { envObj, SupportedNetwork } from "./env";
 
+const useStyles = makeStyles(
+  createStyles({
+    tableHeader: {
+      fontSize: 12,
+    },
+  })
+);
+
 type AssetPaneProps = {
   assets: AssetPosition[] | undefined;
   handleCollateralReduction: (index: number, amount: BigNumber) => void;
 };
 
 const CollateralPane = (props: AssetPaneProps) => {
+  const classes = useStyles();
+
   return (
     <TableContainer component={Paper}>
       <Table sx={{ minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
-            <TableCell>Collateral</TableCell>
-            <TableCell align="right">Amount to reduce</TableCell>
+            <TableCell className={classes.tableHeader}>COLLATERAL</TableCell>
+            <TableCell className={classes.tableHeader} align="center">
+              AMOUNT TO REDUCE
+            </TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -121,7 +136,9 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
   const [healthFactor, setHealthFactor] = React.useState<number>();
   const [errorMessage, setErrorMessage] = React.useState<string>();
   const [open, setOpen] = React.useState(false);
-  const [expanded, setExpanded] = React.useState(false);
+  const [step, setStep] = React.useState(0);
+  const [readyToSwap, setReadyToSwap] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
 
   const getTokenInfo: (t: string) => Promise<TokenInfo> = React.useCallback(
     async (tokenAddress: string) => {
@@ -151,6 +168,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
   React.useEffect(() => {
     const updateHealthFactor = async () => {
       if (targetTokenInfo && priceOracle) {
+        setLoading(true);
         const [assetInfos, amounts] = await buildToBeReducedCollaterals();
         const repayVars: RepayVars = await aaveManager.methods
           .checkAndCalculateRepayVars(
@@ -162,7 +180,8 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
             SLIPPAGE_BASE_UINT.mul(slippage),
             payFeeByCollateral
           )
-          .call({ from: account });
+          .call({ from: account })
+          .finally(() => setLoading(false));
         const healthFactor = Number(
           formatEther(repayVars.expectedHealthFactor)
         );
@@ -230,7 +249,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
   const handleClose = () => {
     setCollateralReducedAmounts(undefined);
     setTargetTokenAmount(BigNumber.from(0));
-    setExpanded(false);
+    setStep(0);
     setOpen(false);
   };
 
@@ -249,6 +268,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
 
   const handleDeleverage = React.useCallback(async () => {
     const [assetInfos, amounts] = await buildToBeReducedCollaterals();
+    setLoading(true);
     if (payFeeByCollateral) {
       return aaveManager.methods
         .repayDebt(
@@ -259,7 +279,8 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           borrowRateMode,
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
-        .send({ from: account });
+        .send({ from: account })
+        .finally(() => setLoading(false));
     } else {
       return aaveManager.methods
         .repayDebt(
@@ -270,7 +291,8 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           borrowRateMode,
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
-        .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] });
+        .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] })
+        .finally(() => setLoading(false));
     }
   }, [
     aaveManager,
@@ -347,14 +369,15 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
   }, [web3, account, buildToBeReducedCollaterals, dataProvider]);
 
   const onPrepareRepay = React.useCallback(() => {
-    if (targetTokenAmount.gt(0)) {
-      buildApprovalSteps().then(() => {
-        setExpanded(true);
-      });
-    } else {
-      setExpanded(false);
-    }
-  }, [buildApprovalSteps, targetTokenAmount]);
+    buildApprovalSteps().then(() => {
+      setReadyToSwap(false);
+      setStep(1);
+    });
+  }, [buildApprovalSteps]);
+
+  const finalizeApproval = React.useCallback(() => {
+    setReadyToSwap(true);
+  }, []);
 
   return (
     <div>
@@ -377,98 +400,125 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           id="customized-dialog-title"
           onClose={handleClose}
         >
-          DELEVERAGE A BORROW POSITION
+          DELEVERAGE A POSITION
         </BootstrapDialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={12}>
-              <CollateralPane
-                assets={collateralList}
-                handleCollateralReduction={handleCollateralReducedAmountSelect}
-              />
-            </Grid>
-            <Grid item xs={12} sm={9}>
-              <TokenValueSlider
-                label="Target Token Amount"
-                targetToken={targetToken}
-                maxAmount={maxTargetTokenAmount}
-                setTokenValue={setTargetTokenAmount}
-              />
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <SlippageSelect
-                label="Slippage"
-                slippage={slippage}
-                slippageOptions={[1, 2, 3, 4, 5]}
-                selectSlippage={setSlippage}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <RadioButtonsGroup
-                groupLabel="Fees"
-                buttonLable1="Pay by Collateral"
-                buttonLable2="Pay by Ether"
-                setSelectedValue={setPayFeeByCollateral}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Typography gutterBottom>
-                Estimated Fees:{" "}
-                <strong>
-                  {" "}
-                  {fee
-                    ? Number(formatEther(fee[0])).toFixed(TOKEN_FIXED_PRECISION)
-                    : "--"}
-                </strong>{" "}
-                ether{" "}
-                {fee && fee.length > 1 && (
-                  <span>
-                    (
-                    <strong>
-                      {Number(formatEther(fee[1])).toFixed(
-                        TOKEN_FIXED_PRECISION
-                      )}{" "}
-                    </strong>
-                    {NATIVE_TOKEN_SYMBOL})
-                  </span>
-                )}
-              </Typography>
-              <Typography gutterBottom>
-                New Health Factor:{" "}
-                <strong>
-                  {healthFactor
-                    ? `${
-                        healthFactor <= 1e7
-                          ? healthFactor.toFixed(HEALTH_FACTOR_FIXED_PRECISION)
-                          : "--"
-                      }`
-                    : "--"}
-                </strong>
-              </Typography>
-              <Typography gutterBottom>{errorMessage}</Typography>
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            autoFocus
-            disabled={targetTokenAmount.lte(0) || !!errorMessage}
-            onClick={onPrepareRepay}
-          >
-            prepare repay
-          </Button>
-        </DialogActions>
-        <Collapse in={expanded}>
-          <DialogContent>
-            {approvalSteps && (
-              <ApprovalStepper
-                steps={approvalSteps}
-                label="All set. Now repay your debts"
-                action={handleDeleverage}
-              />
-            )}
-          </DialogContent>
-        </Collapse>
+        <SwipeableViews index={step}>
+          <div key={"deleverage-prepare-repay"}>
+            <DialogContent dividers>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={12}>
+                  <CollateralPane
+                    assets={collateralList}
+                    handleCollateralReduction={
+                      handleCollateralReducedAmountSelect
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={9}>
+                  <TokenValueSlider
+                    label="Target Token Amount"
+                    targetToken={targetToken}
+                    maxAmount={maxTargetTokenAmount}
+                    setTokenValue={setTargetTokenAmount}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <RadioButtonsGroup
+                    groupLabel="Fees"
+                    buttonLable1="Pay by Collateral"
+                    buttonLable2="Pay by Ether"
+                    setSelectedValue={setPayFeeByCollateral}
+                  />
+                </Grid>
+                <Grid item sx={{ mt: 2 }} xs={12} sm={6}>
+                  <SlippageSelect
+                    label="Slippage"
+                    slippage={slippage}
+                    slippageOptions={[1, 2, 3, 4, 5]}
+                    selectSlippage={setSlippage}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography gutterBottom>
+                    Estimated Fees:{" "}
+                    {loading ? (
+                      <CircularProgress size={15} />
+                    ) : (
+                      <strong>
+                        {" "}
+                        {fee
+                          ? Number(formatEther(fee[0])).toFixed(
+                              TOKEN_FIXED_PRECISION
+                            )
+                          : "--"}
+                      </strong>
+                    )}{" "}
+                    ether{" "}
+                    {!loading && fee && fee.length > 1 && (
+                      <span>
+                        (
+                        <strong>
+                          {Number(formatEther(fee[1])).toFixed(
+                            TOKEN_FIXED_PRECISION
+                          )}{" "}
+                        </strong>
+                        {NATIVE_TOKEN_SYMBOL})
+                      </span>
+                    )}
+                  </Typography>
+                  <Typography gutterBottom>
+                    New Health Factor:{" "}
+                    {loading ? (
+                      <CircularProgress size={10} />
+                    ) : (
+                      <strong>
+                        {healthFactor
+                          ? `${
+                              healthFactor <= 1e7
+                                ? healthFactor.toFixed(
+                                    HEALTH_FACTOR_FIXED_PRECISION
+                                  )
+                                : "--"
+                            }`
+                          : "--"}
+                      </strong>
+                    )}
+                  </Typography>
+                  <Typography gutterBottom>{errorMessage}</Typography>
+                </Grid>
+              </Grid>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                autoFocus
+                disabled={targetTokenAmount.lte(0) || !!errorMessage}
+                onClick={onPrepareRepay}
+              >
+                next
+              </Button>
+            </DialogActions>
+          </div>
+          <div key={"deleverage-repay"}>
+            <DialogContent dividers>
+              {approvalSteps && (
+                <ApprovalStepper
+                  steps={approvalSteps}
+                  finalizeApproval={finalizeApproval}
+                />
+              )}
+            </DialogContent>
+            <DialogActions>
+              <LoadingButton
+                disabled={!readyToSwap}
+                loading={loading}
+                onClick={handleDeleverage}
+              >
+                sumbit
+              </LoadingButton>
+              <Button onClick={() => setStep(0)}>back</Button>
+            </DialogActions>
+          </div>
+        </SwipeableViews>
       </BootstrapDialog>
     </div>
   );
