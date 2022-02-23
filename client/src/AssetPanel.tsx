@@ -49,9 +49,11 @@ const CollateralPane: React.FC<AssetPaneProps> = ({ assets, classes }) => {
       <Table sx={{ minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
-            <TableCell className={classes.tableHeader}>COLLATERAL</TableCell>
+            <TableCell className={classes.tableHeader}>
+              <strong>COLLATERAL</strong>
+            </TableCell>
             <TableCell className={classes.tableHeader} align="right">
-              AMOUNT
+              <strong>AMOUNT</strong>
             </TableCell>
           </TableRow>
         </TableHead>
@@ -97,15 +99,17 @@ const DebtPane: React.FC<DebtPaneProps> = ({
 }) => {
   return (
     <TableContainer component={Paper}>
-      <Table sx={{ minWidth: 350 }} aria-label="simple table">
+      <Table sx={{ m: 1, minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
-            <TableCell className={classes.tableHeader}>LOAN</TableCell>
-            <TableCell className={classes.tableHeader} align="right">
-              STABLE DEBT
+            <TableCell className={classes.tableHeader}>
+              <strong>LOAN</strong>
             </TableCell>
             <TableCell className={classes.tableHeader} align="right">
-              VARIABLE DEBT
+              <strong>STABLE DEBT</strong>
+            </TableCell>
+            <TableCell className={classes.tableHeader} align="right">
+              <strong>VARIABLE DEBT</strong>
             </TableCell>
           </TableRow>
         </TableHead>
@@ -215,11 +219,11 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
   return (
     <div>
       {aaveMgrContract && assetList && account && (
-        <Grid justifyContent="center" container spacing={2}>
-          <Grid item xs={12} sm={6}>
+        <Grid justifyContent="center" container sx={{ p: 1.5 }} spacing={2}>
+          <Grid item xs={12} md={6}>
             <CollateralPane assets={userCollaterals} classes={classes} />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} md={6}>
             <DebtPane
               web3={web3}
               aaveManager={aaveMgrContract}

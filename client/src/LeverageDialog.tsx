@@ -70,6 +70,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
     React.useState<number>();
   const [fee, setFee] = React.useState<BigNumber[]>();
   const [healthFactor, setHealthFactor] = React.useState<number>();
+  const [errorMessage, setErrorMessage] = React.useState<string>();
   const [open, setOpen] = React.useState(false);
   const [step, setStep] = React.useState(0);
   const [readyToSwap, setReadyToSwap] = React.useState(false);
@@ -104,16 +105,24 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
     const updateHealthFactor = async () => {
       if (priceOracle && targetToken && pairToken) {
         setLoading(true);
-        const swapVars: SwapVars = await aaveManager.methods
-          .checkAndCalculateSwapVars(
-            targetToken,
-            targetTokenAmount,
-            pairToken,
-            SLIPPAGE_BASE_UINT.mul(slippage),
-            payFeeByCollateral
-          )
-          .call({ from: account })
-          .finally(() => setLoading(false));
+        let swapVars: SwapVars;
+        try {
+          swapVars = await aaveManager.methods
+            .checkAndCalculateSwapVars(
+              targetToken,
+              targetTokenAmount,
+              pairToken,
+              SLIPPAGE_BASE_UINT.mul(slippage),
+              payFeeByCollateral
+            )
+            .call({ from: account });
+        } catch (e: any) {
+          setErrorMessage(e.message);
+          return;
+        } finally {
+          setLoading(false);
+        }
+        setErrorMessage(undefined);
         calculateMaxLoanAmount(swapVars.maxLoanETH, targetToken, priceOracle);
         const healthFactor = Number(formatEther(swapVars.expectedHealthFactor));
         setHealthFactor(healthFactor);
@@ -151,7 +160,11 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
         .send({ from: account })
-        .finally(() => setLoading(false));
+        .catch((e: any) => setErrorMessage(e.message))
+        .finally(() => {
+          setLoading(false);
+          setReadyToSwap(false);
+        });
     } else {
       return aaveManager!.methods
         .swapPreapprovedAssets(
@@ -162,7 +175,11 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
         .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] })
-        .finally(() => setLoading(false));
+        .catch((e: any) => setErrorMessage(e.message))
+        .finally(() => {
+          setLoading(false);
+          setReadyToSwap(false);
+        });
     }
   }, [
     aaveManager,
@@ -406,6 +423,8 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
                       </span>
                     )}
                   </Typography>
+                </Grid>
+                <Grid item xs={12} sm={5}>
                   <Typography gutterBottom>
                     New Health Factor:{" "}
                     {loading ? (
@@ -423,6 +442,11 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
                           : "--"}
                       </strong>
                     )}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={7}>
+                  <Typography color="error" gutterBottom>
+                    {errorMessage}
                   </Typography>
                 </Grid>
               </Grid>
@@ -445,6 +469,9 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
                   finalizeApproval={finalizeApproval}
                 />
               )}
+              <Typography color="error" gutterBottom>
+                {errorMessage}
+              </Typography>
             </DialogContent>
             <DialogActions>
               <LoadingButton

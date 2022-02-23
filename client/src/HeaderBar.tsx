@@ -68,6 +68,7 @@ const AppToolBar = () => {
   const { connector, activate, deactivate, active, error } =
     useWeb3React<Web3Provider>();
   const [web3, setWeb3] = React.useState<Web3>();
+  const [open, setOpen] = React.useState(false);
   // handle logic to recognize the connector currently being activated
   React.useEffect(() => {
     if (active) {
@@ -75,7 +76,10 @@ const AppToolBar = () => {
         setWeb3(new Web3(p));
       });
     }
-  }, [active, connector]);
+    if (error) {
+      setOpen(true);
+    }
+  }, [active, connector, error]);
 
   // handle logic to eagerly connect to the injected ethereum provider, if it exists and has granted access already
   const triedEager = useEagerConnect();
@@ -89,6 +93,7 @@ const AppToolBar = () => {
     if (reason === "clickaway") {
       return;
     }
+    setOpen(false);
   };
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -110,12 +115,13 @@ const AppToolBar = () => {
             active={active}
             activateConnector={activate}
             deactivateConnector={deactivate}
+            connector={connector}
           />
         </Toolbar>
       </AppBar>
       {web3 && <AssetPanel web3={web3} />}
       <Snackbar
-        open={!!error}
+        open={open}
         autoHideDuration={6000}
         onClose={handleErrorMsgClose}
       >

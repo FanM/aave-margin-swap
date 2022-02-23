@@ -4,6 +4,8 @@ import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import ListItemText from "@mui/material/ListItemText";
+import Typography from "@mui/material/Typography";
+import Badge from "@mui/material/Badge";
 
 import { AbstractConnector } from "@web3-react/abstract-connector";
 import { useWeb3React } from "@web3-react/core";
@@ -46,8 +48,15 @@ type WalletMenuProps = {
     throwErrors?: boolean
   ) => Promise<void>;
   deactivateConnector: () => void;
+  connector: AbstractConnector | undefined;
 };
-export default function WalletMenu(props: WalletMenuProps) {
+
+const WalletMenu: React.FC<WalletMenuProps> = ({
+  active,
+  activateConnector,
+  deactivateConnector,
+  connector,
+}) => {
   const { account } = useWeb3React();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
@@ -60,6 +69,23 @@ export default function WalletMenu(props: WalletMenuProps) {
     setAnchorEl(null);
   }
 
+  const activate = React.useCallback(
+    (name: ConnectorNames) => {
+      activateConnector(connectorsByName[name]);
+      setAnchorEl(null);
+    },
+    [activateConnector]
+  );
+
+  const deactivate = React.useCallback(() => {
+    if (connector === connectorsByName[ConnectorNames.WalletConnect]) {
+      (connector as any).close();
+    } else {
+      deactivateConnector();
+    }
+    setAnchorEl(null);
+  }, [deactivateConnector, connector]);
+
   return (
     <div>
       <Button
@@ -68,11 +94,23 @@ export default function WalletMenu(props: WalletMenuProps) {
         aria-haspopup="true"
         onClick={handleClick}
       >
-        {account
-          ? `${account.substring(0, 6)}...${account.substring(
-              account.length - 4
-            )}`
-          : "Connect Wallet"}
+        {account ? (
+          `${account.substring(0, 6)}...${account.substring(
+            account.length - 4
+          )}`
+        ) : (
+          <Badge
+            sx={{ m: 1, p: 0.45 }}
+            badgeContent={
+              <Typography sx={{ fontSize: 8 }}>
+                <em>POLYGON</em>
+              </Typography>
+            }
+            color="secondary"
+          >
+            Connect Wallet
+          </Badge>
+        )}
       </Button>
       <Menu
         classes={{
@@ -93,29 +131,25 @@ export default function WalletMenu(props: WalletMenuProps) {
           horizontal: "center",
         }}
       >
-        {!props.active &&
+        {!active &&
           Object.keys(connectorsByName).map((c: any, index: number) => (
             <MenuItem
               key={index}
               onClick={() => {
-                props.activateConnector(connectorsByName[c as ConnectorNames]);
-                setAnchorEl(null);
+                activate(c as ConnectorNames);
               }}
             >
               <ListItemText primary={c} />
             </MenuItem>
           ))}
-        {props.active && (
-          <MenuItem
-            onClick={() => {
-              props.deactivateConnector();
-              setAnchorEl(null);
-            }}
-          >
+        {active && (
+          <MenuItem onClick={deactivate}>
             <ListItemText primary={"Disconnect"} />
           </MenuItem>
         )}
       </Menu>
     </div>
   );
-}
+};
+
+export default WalletMenu;

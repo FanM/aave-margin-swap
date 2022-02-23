@@ -4,9 +4,9 @@ import { WalletConnectConnector } from "@web3-react/walletconnect-connector";
 import { envObj } from "./env";
 
 const RPC_URLS: { [chainId: number]: string } = {
-  137: envObj["polygon"].rpcUrl,
-  42: envObj["kovan"].rpcUrl,
   1: envObj["mainnet"].rpcUrl,
+  42: envObj["kovan"].rpcUrl,
+  137: envObj["polygon"].rpcUrl,
 };
 
 export const injected = new InjectedConnector({

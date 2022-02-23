@@ -9,7 +9,7 @@ export const BootstrapDialog = styled(Dialog)(({ theme }) => ({
     marginLeft: theme.spacing(2),
     marginRight: theme.spacing(2),
     padding: theme.spacing(2),
-    height: "72vh",
+    height: "70vh",
   },
   "& .MuiDialogActions-root": {
     padding: theme.spacing(1),

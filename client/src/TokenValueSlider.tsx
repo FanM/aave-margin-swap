@@ -119,7 +119,7 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
                 {maxAmount.toFixed(TOKEN_FIXED_PRECISION)}
               </Typography>
             </Grid>
-            <Grid item xs={4} sm={2}>
+            <Grid item xs={4} sm={3.5}>
               <Input
                 value={value}
                 size="small"

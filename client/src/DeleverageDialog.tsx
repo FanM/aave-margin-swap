@@ -68,9 +68,11 @@ const CollateralPane = (props: AssetPaneProps) => {
       <Table sx={{ minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
-            <TableCell className={classes.tableHeader}>COLLATERAL</TableCell>
+            <TableCell className={classes.tableHeader}>
+              <strong>COLLATERAL</strong>
+            </TableCell>
             <TableCell className={classes.tableHeader} align="center">
-              AMOUNT TO REDUCE
+              <strong>AMOUNT TO REDUCE</strong>
             </TableCell>
           </TableRow>
         </TableHead>
@@ -170,18 +172,25 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
       if (targetTokenInfo && priceOracle) {
         setLoading(true);
         const [assetInfos, amounts] = await buildToBeReducedCollaterals();
-        const repayVars: RepayVars = await aaveManager.methods
-          .checkAndCalculateRepayVars(
-            assetInfos,
-            amounts,
-            targetTokenInfo,
-            targetTokenAmount,
-            borrowRateMode,
-            SLIPPAGE_BASE_UINT.mul(slippage),
-            payFeeByCollateral
-          )
-          .call({ from: account })
-          .finally(() => setLoading(false));
+        let repayVars: RepayVars;
+        try {
+          repayVars = await aaveManager.methods
+            .checkAndCalculateRepayVars(
+              assetInfos,
+              amounts,
+              targetTokenInfo,
+              targetTokenAmount,
+              borrowRateMode,
+              SLIPPAGE_BASE_UINT.mul(slippage),
+              payFeeByCollateral
+            )
+            .call({ from: account });
+        } catch (e: any) {
+          setErrorMessage(e.message);
+          return;
+        } finally {
+          setLoading(false);
+        }
         const healthFactor = Number(
           formatEther(repayVars.expectedHealthFactor)
         );
@@ -280,7 +289,11 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
         .send({ from: account })
-        .finally(() => setLoading(false));
+        .catch((e: any) => setErrorMessage(e.message))
+        .finally(() => {
+          setLoading(false);
+          setReadyToSwap(false);
+        });
     } else {
       return aaveManager.methods
         .repayDebt(
@@ -292,7 +305,11 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
         .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] })
-        .finally(() => setLoading(false));
+        .catch((e: any) => setErrorMessage(e.message))
+        .finally(() => {
+          setLoading(false);
+          setReadyToSwap(false);
+        });
     }
   }, [
     aaveManager,
@@ -351,10 +368,10 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
           Number(assetInfos[i].decimals)
         );
         const step: ApprovalStep = {
-          label: `Approve aToken Transfer (a${assetSymbols[i]})`,
+          label: `Approve aToken Transfer (am${assetSymbols[i]})`,
           description: `Approve contract to transfer ${Number(
             formatEther(amounts[i])
-          ).toFixed(TOKEN_FIXED_PRECISION)} a${
+          ).toFixed(TOKEN_FIXED_PRECISION)} am${
             assetSymbols[i]
           } on behalf of you.`,
           checkAllowance: () =>
@@ -466,6 +483,8 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
                       </span>
                     )}
                   </Typography>
+                </Grid>
+                <Grid item xs={12} sm={5}>
                   <Typography gutterBottom>
                     New Health Factor:{" "}
                     {loading ? (
@@ -484,7 +503,11 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
                       </strong>
                     )}
                   </Typography>
-                  <Typography gutterBottom>{errorMessage}</Typography>
+                </Grid>
+                <Grid item xs={12} sm={7}>
+                  <Typography color="error" gutterBottom>
+                    {errorMessage}
+                  </Typography>
                 </Grid>
               </Grid>
             </DialogContent>
@@ -506,6 +529,9 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
                   finalizeApproval={finalizeApproval}
                 />
               )}
+              <Typography color="error" gutterBottom>
+                {errorMessage}
+              </Typography>
             </DialogContent>
             <DialogActions>
               <LoadingButton

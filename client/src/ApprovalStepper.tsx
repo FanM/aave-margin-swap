@@ -45,10 +45,10 @@ const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
   const handleNext = () => {
     const step = steps[activeStep];
     setLoading(true);
-    step.approveAllowance().finally(() => {
-      setLoading(false);
-      setActiveStep(activeStep + 1);
-    });
+    step
+      .approveAllowance()
+      .then(() => setActiveStep(activeStep + 1))
+      .finally(() => setLoading(false));
   };
 
   return (
