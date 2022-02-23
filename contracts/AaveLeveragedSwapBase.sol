@@ -176,6 +176,12 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
     }
 
     swapVars.feeETH = swapVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
+    if (!_feePaidByCollateral) {
+      // consider the slippage
+      swapVars.feeETH = swapVars.feeETH.percentDiv(
+        PercentageMath.PERCENTAGE_FACTOR - _slippage
+      );
+    }
     uint newCollateral = swapVars.flashLoanETH.percentMul(
       _pairToken.liquidationThreshold
     ) + totalCollateralETH.percentMul(currentLiquidationThreshold);
@@ -250,11 +256,18 @@ abstract contract AaveLeveragedSwapBase is IAaveLeveragedSwapManager {
       }
     }
     repayVars.feeETH = repayVars.flashLoanETH.percentMul(FLASH_LOAN_FEE_RATE);
-    repayVars.loanETH = (
-      _feePaidByCollateral
-        ? repayVars.flashLoanETH
-        : repayVars.flashLoanETH + repayVars.feeETH
-    ).percentDiv(PercentageMath.PERCENTAGE_FACTOR - _slippage);
+    if (_feePaidByCollateral) {
+      repayVars.loanETH = repayVars.flashLoanETH + repayVars.feeETH;
+    } else {
+      repayVars.loanETH = repayVars.flashLoanETH;
+      repayVars.feeETH = repayVars.feeETH.percentDiv(
+        PercentageMath.PERCENTAGE_FACTOR - _slippage
+      );
+    }
+    // consider the slippage
+    repayVars.loanETH = repayVars.loanETH.percentDiv(
+      PercentageMath.PERCENTAGE_FACTOR - _slippage
+    );
 
     if (existDebtETH <= repayVars.flashLoanETH) {
       // user's debt is cleared

@@ -200,10 +200,7 @@ contract AaveLeveragedSwapManager is
   function _ensureValueSentCanCoverFees(uint _value) private {
     // converts the native token value to ETH
     // factors in the swap slippage and
-    uint wethAmount = PRICE_ORACLE
-      .getAssetPrice(NATIVE_ETH)
-      .wadMul(_value)
-      .percentMul(PercentageMath.PERCENTAGE_FACTOR - vars.slippage);
+    uint wethAmount = PRICE_ORACLE.getAssetPrice(NATIVE_ETH).wadMul(_value);
     // verifies that its value is enough to cover the fees
     require(wethAmount >= vars.feeETH, Errors.OPS_FLASH_LOAN_FEE_NOT_ENOUGH);
     vars.feeTokenAmount = _value;
@@ -282,7 +279,9 @@ contract AaveLeveragedSwapManager is
       pairTokenAmount += swapExactETHForTokens(
         vars.feeTokenAmount,
         vars.pairToken,
-        convertEthToTokenAmount(vars.feeETH, vars.pairToken),
+        convertEthToTokenAmount(vars.feeETH, vars.pairToken).percentMul(
+          PercentageMath.PERCENTAGE_FACTOR - vars.slippage
+        ),
         address(this) /*onBehalfOf*/
       );
     }
@@ -374,7 +373,9 @@ contract AaveLeveragedSwapManager is
       targetTokenAmountConverted += swapExactETHForTokens(
         vars.feeTokenAmount,
         vars.targetToken,
-        convertEthToTokenAmount(vars.feeETH, vars.targetToken),
+        convertEthToTokenAmount(vars.feeETH, vars.targetToken).percentMul(
+          PercentageMath.PERCENTAGE_FACTOR - vars.slippage
+        ),
         address(this) /*onBehalfOf*/
       );
     }

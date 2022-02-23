@@ -11,7 +11,6 @@ import {
   WethGateway,
   NativeToken,
   DaiToken,
-  WethToken,
   UsdtToken,
   AaveToken,
 } from "../.env.mainnet.json";
@@ -33,7 +32,6 @@ import {
 
 const ETH_IN_WEI = BigInt(1e18);
 const ABS_ERROR_ALLOWED = 1e15; // 0.001
-const ONE_HUNDRED_PERCENT = BigInt(10000); // 100%
 const FEE_CALCULATION_SKEW = BigInt(5); // usually ±1 wei
 const SLIPPAGE = BigInt(200); // 2%
 const DEPOSIT_AMOUNT = BigInt(20) * ETH_IN_WEI;
@@ -178,9 +176,9 @@ before(async () => {
   );
   // choose Weth and Dai as our token pair because they both have 18 decimals thus
   // easier to work with ERC20 APIs
-  targetTokenInfo = await aaveManager.getTokenInfo(WethToken);
-  targetTokenAddrs = await dataProvider.getReserveTokensAddresses(WethToken);
-  targetToken = IERC20__factory.connect(WethToken, account);
+  targetTokenInfo = await aaveManager.getTokenInfo(NativeToken);
+  targetTokenAddrs = await dataProvider.getReserveTokensAddresses(NativeToken);
+  targetToken = IERC20__factory.connect(NativeToken, account);
   pairTokenInfo = await aaveManager.getTokenInfo(DaiToken);
   pairTokenAddrs = await dataProvider.getReserveTokensAddresses(DaiToken);
   pairToken = IERC20__factory.connect(DaiToken, account);
@@ -381,11 +379,7 @@ describe("AaveLeveragedSwapManager", function () {
       RATE_MODE,
       SLIPPAGE,
       {
-        value:
-          (feeAmount * // consider the slippage
-            ONE_HUNDRED_PERCENT) /
-            (ONE_HUNDRED_PERCENT - SLIPPAGE) +
-          FEE_CALCULATION_SKEW,
+        value: feeAmount + FEE_CALCULATION_SKEW,
       }
     );
 
@@ -448,11 +442,7 @@ describe("AaveLeveragedSwapManager", function () {
       RATE_MODE,
       SLIPPAGE,
       {
-        value:
-          (feeAmount * // consider the slippage
-            ONE_HUNDRED_PERCENT) /
-            (ONE_HUNDRED_PERCENT - SLIPPAGE) +
-          FEE_CALCULATION_SKEW,
+        value: feeAmount + FEE_CALCULATION_SKEW,
       }
     );
     const recept = await ethers.provider.getTransactionReceipt(tx.hash);
