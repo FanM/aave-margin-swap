@@ -65,8 +65,9 @@ const colorTheme = createTheme({
 });
 
 const AppToolBar = () => {
-  const { connector, activate, deactivate, active, error } =
-    useWeb3React<Web3Provider>();
+  const { connector, activate, deactivate, active, error } = useWeb3React<
+    Web3Provider
+  >();
   const [web3, setWeb3] = React.useState<Web3>();
   const [open, setOpen] = React.useState(false);
   // handle logic to recognize the connector currently being activated
@@ -119,7 +120,7 @@ const AppToolBar = () => {
           />
         </Toolbar>
       </AppBar>
-      {web3 && <AssetPanel web3={web3} />}
+      <AssetPanel web3={web3} />
       <Snackbar
         open={open}
         autoHideDuration={6000}

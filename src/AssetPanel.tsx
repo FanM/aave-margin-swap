@@ -17,6 +17,7 @@ import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import Link from "@mui/material/Link";
+import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import GitHubIcon from "@mui/icons-material/GitHub";
 
@@ -85,7 +86,7 @@ const CollateralPane: React.FC<AssetPaneProps> = ({ assets, classes }) => {
 };
 
 type DebtPaneProps = {
-  web3: Web3;
+  web3: Web3 | undefined;
   aaveManager: Contract | undefined;
   account: string | null | undefined;
   debts: AssetPosition[] | undefined;
@@ -118,7 +119,8 @@ const DebtPane: React.FC<DebtPaneProps> = ({
           </TableRow>
         </TableHead>
         <TableBody>
-          {aaveManager &&
+          {web3 &&
+            aaveManager &&
             account &&
             debts &&
             debts.map((asset: AssetPosition, index: number) => (
@@ -182,7 +184,7 @@ const DebtPane: React.FC<DebtPaneProps> = ({
 };
 
 type AssetPanelProps = {
-  web3: Web3;
+  web3: Web3 | undefined;
 };
 const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
   const classes = useStyles();
@@ -190,36 +192,42 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
   const [aaveMgrContract, setAaveMgrContract] = React.useState<Contract>();
   const { account } = useWeb3React();
   const [assetList, setAssetList] = React.useState<AssetPosition[]>();
-  const [userCollaterals, setUserCollaterals] =
-    React.useState<AssetPosition[]>();
+  const [userCollaterals, setUserCollaterals] = React.useState<
+    AssetPosition[]
+  >();
   const [userDebts, setUserDebts] = React.useState<AssetPosition[]>();
+  const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    const aaveManager = new web3.eth.Contract(
-      AaveManagerContract.abi as AbiItem[],
-      process.env.REACT_APP_DEPLOYED_CONTRACT
-    );
-    aaveManager.methods
-      .getAssetPositions()
-      .call({ from: account })
-      .then((assets: AssetPosition[]) => {
-        setAssetList(assets);
-        setUserCollaterals(
-          assets.filter(
-            (asset) =>
-              asset.usedAsCollateral &&
-              BigInt(asset.aTokenBalance.toString()) > 0
-          )
-        );
-        setUserDebts(
-          assets.filter(
-            (asset) =>
-              BigInt(asset.stableDebt.toString()) > 0 ||
-              BigInt(asset.variableDebt.toString()) > 0
-          )
-        );
-      });
-    setAaveMgrContract(aaveManager);
+    if (web3) {
+      const aaveManager = new web3.eth.Contract(
+        AaveManagerContract.abi as AbiItem[],
+        process.env.REACT_APP_DEPLOYED_CONTRACT
+      );
+      setLoading(true);
+      aaveManager.methods
+        .getAssetPositions()
+        .call({ from: account })
+        .then((assets: AssetPosition[]) => {
+          setAssetList(assets);
+          setUserCollaterals(
+            assets.filter(
+              (asset) =>
+                asset.usedAsCollateral &&
+                BigInt(asset.aTokenBalance.toString()) > 0
+            )
+          );
+          setUserDebts(
+            assets.filter(
+              (asset) =>
+                BigInt(asset.stableDebt.toString()) > 0 ||
+                BigInt(asset.variableDebt.toString()) > 0
+            )
+          );
+          setLoading(false);
+        });
+      setAaveMgrContract(aaveManager);
+    }
   }, [web3, account]);
 
   const handleGithubClick = () => {
@@ -246,20 +254,28 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
           </Typography>
         </Grid>
         <Grid item xs={12} md={6}>
-          <CollateralPane assets={userCollaterals} classes={classes} />
+          {loading ? (
+            <CircularProgress />
+          ) : (
+            <CollateralPane assets={userCollaterals} classes={classes} />
+          )}
         </Grid>
         <Grid item xs={12} md={6}>
-          <DebtPane
-            web3={web3}
-            aaveManager={aaveMgrContract}
-            account={account}
-            debts={userDebts}
-            collaterals={userCollaterals}
-            classes={classes}
-          />
+          {loading ? (
+            <CircularProgress />
+          ) : (
+            <DebtPane
+              web3={web3}
+              aaveManager={aaveMgrContract}
+              account={account}
+              debts={userDebts}
+              collaterals={userCollaterals}
+              classes={classes}
+            />
+          )}
         </Grid>
         <Grid item xs={12}>
-          {aaveMgrContract && account && assetList && (
+          {web3 && aaveMgrContract && account && assetList && (
             <LeverageDialog
               web3={web3}
               aaveManager={aaveMgrContract}
