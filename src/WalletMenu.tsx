@@ -37,6 +37,9 @@ const useStyles = makeStyles(
       color: "white",
       hoverColor: "green",
     },
+    image: {
+      height: "2.5vh",
+    },
   })
 );
 
@@ -100,15 +103,19 @@ const WalletMenu: React.FC<WalletMenuProps> = ({
           )}`
         ) : (
           <Badge
-            sx={{ m: 1, p: 0.45 }}
+            sx={{ ml: -2.5, p: 0.5 }}
             badgeContent={
-              <Typography sx={{ fontSize: 8 }}>
-                <em>POLYGON</em>
-              </Typography>
+              <img
+                alt="Polygon"
+                className={classes.image}
+                src="/images/matic-token.png"
+              />
             }
-            color="secondary"
+            color="primary"
           >
-            Connect Wallet
+            <Typography variant="body2" noWrap>
+              Connect Wallet
+            </Typography>
           </Badge>
         )}
       </Button>

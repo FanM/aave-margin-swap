@@ -41,6 +41,7 @@ type LeverageDialogProps = {
   aaveManager: Contract;
   account: string;
   assetList: AssetPosition[];
+  disabled: boolean;
 };
 
 const LeverageDialog: React.FC<LeverageDialogProps> = ({
@@ -48,6 +49,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   aaveManager,
   account,
   assetList,
+  disabled,
 }) => {
   const [dataProvider, setDataProvider] = React.useState<Contract>();
   const [priceOracle, setPriceOracle] = React.useState<Contract>();
@@ -312,11 +314,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
 
   return (
     <div>
-      <Button
-        variant="outlined"
-        disabled={!assetList}
-        onClick={handleClickOpen}
-      >
+      <Button variant="outlined" disabled={disabled} onClick={handleClickOpen}>
         create a leverage position
       </Button>
       <BootstrapDialog

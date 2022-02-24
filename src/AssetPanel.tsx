@@ -15,6 +15,10 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
+import Link from "@mui/material/Link";
+import IconButton from "@mui/material/IconButton";
+import GitHubIcon from "@mui/icons-material/GitHub";
 
 import { AssetPosition } from "./types";
 import { TOKEN_FIXED_PRECISION } from "./utils";
@@ -82,8 +86,8 @@ const CollateralPane: React.FC<AssetPaneProps> = ({ assets, classes }) => {
 
 type DebtPaneProps = {
   web3: Web3;
-  aaveManager: Contract;
-  account: string;
+  aaveManager: Contract | undefined;
+  account: string | null | undefined;
   debts: AssetPosition[] | undefined;
   collaterals: AssetPosition[] | undefined;
   classes: ClassNameMap;
@@ -114,7 +118,9 @@ const DebtPane: React.FC<DebtPaneProps> = ({
           </TableRow>
         </TableHead>
         <TableBody>
-          {debts &&
+          {aaveManager &&
+            account &&
+            debts &&
             debts.map((asset: AssetPosition, index: number) => (
               <TableRow
                 key={index}
@@ -216,33 +222,68 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
     setAaveMgrContract(aaveManager);
   }, [web3, account]);
 
+  const handleGithubClick = () => {
+    window.open(process.env.REACT_APP_GITHUB_LINK);
+  };
+
   return (
     <div>
-      {aaveMgrContract && assetList && account && (
-        <Grid justifyContent="center" container sx={{ p: 1.5 }} spacing={2}>
-          <Grid item xs={12} md={6}>
-            <CollateralPane assets={userCollaterals} classes={classes} />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <DebtPane
-              web3={web3}
-              aaveManager={aaveMgrContract}
-              account={account}
-              debts={userDebts}
-              collaterals={userCollaterals}
-              classes={classes}
-            />
-          </Grid>
-          <Grid item>
+      <Grid
+        justifyContent="center"
+        textAlign="center"
+        container
+        sx={{ p: 1.5 }}
+        spacing={2}
+      >
+        <Grid item sx={{ mt: 3, m: 1, p: 1 }} xs={12}>
+          <Typography color="secondary">
+            <em>
+              <strong>
+                CREATE YOUR LEVERAGED POSITIONS USING{" "}
+                <Link href="https://aave.com/">AAVE</Link>
+              </strong>
+            </em>
+          </Typography>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <CollateralPane assets={userCollaterals} classes={classes} />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <DebtPane
+            web3={web3}
+            aaveManager={aaveMgrContract}
+            account={account}
+            debts={userDebts}
+            collaterals={userCollaterals}
+            classes={classes}
+          />
+        </Grid>
+        <Grid item xs={12}>
+          {aaveMgrContract && account && assetList && (
             <LeverageDialog
               web3={web3}
               aaveManager={aaveMgrContract}
               account={account}
               assetList={assetList}
+              disabled={!userCollaterals || userCollaterals.length === 0}
             />
-          </Grid>
+          )}
         </Grid>
-      )}
+        <Grid item sx={{ m: 1, p: 1 }} xs={12}>
+          <Typography sx={{ mt: 4 }}>
+            <em>
+              Currently only{" "}
+              <Link href="https://polygon.technology/">Polygon</Link> network is
+              supported, please read the user manual first on the Github page.
+            </em>
+          </Typography>
+        </Grid>
+        <Grid item xs={12}>
+          <IconButton onClick={handleGithubClick}>
+            <GitHubIcon />
+          </IconButton>
+        </Grid>
+      </Grid>
     </div>
   );
 };
