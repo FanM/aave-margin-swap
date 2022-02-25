@@ -29,6 +29,9 @@ const useStyles = makeStyles(
     button: {
       color: "white",
     },
+    buttonText: {
+      maxWidth: "22vw",
+    },
     paper: {
       backgroundColor: "#cccccc",
       color: "white",
@@ -113,7 +116,7 @@ const WalletMenu: React.FC<WalletMenuProps> = ({
             }
             color="warning"
           >
-            <Typography variant="body2" noWrap>
+            <Typography variant="body2" className={classes.buttonText} noWrap>
               Connect Wallet
             </Typography>
           </Badge>
