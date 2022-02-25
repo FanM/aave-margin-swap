@@ -50,7 +50,10 @@ type AssetPaneProps = {
 
 const CollateralPane: React.FC<AssetPaneProps> = ({ assets, classes }) => {
   return (
-    <TableContainer component={Paper}>
+    <TableContainer
+      sx={{ bgcolor: "secondary.dark", elevation: 5 }}
+      component={Paper}
+    >
       <Table sx={{ minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
@@ -103,7 +106,10 @@ const DebtPane: React.FC<DebtPaneProps> = ({
   classes,
 }) => {
   return (
-    <TableContainer component={Paper}>
+    <TableContainer
+      component={Paper}
+      sx={{ bgcolor: "secondary.dark", elevation: 5 }}
+    >
       <Table sx={{ m: 1, minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
@@ -244,13 +250,11 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
         spacing={2}
       >
         <Grid item sx={{ mt: 3, m: 1, p: 1 }} xs={12}>
-          <Typography color="secondary">
-            <em>
-              <strong>
-                CREATE YOUR LEVERAGED POSITIONS USING{" "}
-                <Link href="https://aave.com/">AAVE</Link>
-              </strong>
-            </em>
+          <Typography color="text.primary">
+            <strong>
+              CREATE YOUR LEVERAGED POSITIONS USING{" "}
+              <Link href="https://aave.com/">AAVE</Link>
+            </strong>
           </Typography>
         </Grid>
         <Grid item xs={12} md={6}>
@@ -286,7 +290,7 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
           )}
         </Grid>
         <Grid item sx={{ m: 1, p: 1 }} xs={12}>
-          <Typography sx={{ mt: 4 }}>
+          <Typography sx={{ mt: 4, color: "warning.light" }}>
             <em>
               Currently only{" "}
               <Link href="https://polygon.technology/">Polygon</Link> network is
@@ -296,7 +300,7 @@ const AssetPanel: React.FC<AssetPanelProps> = ({ web3 }) => {
         </Grid>
         <Grid item xs={12}>
           <IconButton onClick={handleGithubClick}>
-            <GitHubIcon />
+            <GitHubIcon sx={{ color: "text.primary" }} />
           </IconButton>
         </Grid>
       </Grid>

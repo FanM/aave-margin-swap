@@ -8,7 +8,7 @@ import IconButton from "@mui/material/IconButton";
 import Snackbar from "@mui/material/Snackbar";
 import MuiAlert, { AlertProps } from "@mui/material/Alert";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
-import { lightBlue, purple } from "@mui/material/colors";
+import { lightBlue, purple, grey, yellow } from "@mui/material/colors";
 import { createSvgIcon } from "@mui/material/utils";
 
 import {
@@ -60,11 +60,30 @@ function getLibrary(provider: any): Web3Provider {
   return library;
 }
 
+const colorBarStart = lightBlue[200];
+const colorBarEnd = purple[400];
+const colorWhite = "#ffffff";
 const colorTheme = createTheme({
   palette: {
     primary: {
-      main: purple[800],
-      contrastText: lightBlue[200],
+      main: lightBlue[300],
+      contrastText: colorWhite,
+    },
+    secondary: {
+      main: grey[800],
+      dark: grey[700],
+      light: grey[600],
+    },
+    text: {
+      primary: colorBarStart,
+      secondary: colorWhite,
+    },
+    warning: {
+      main: colorBarEnd,
+      light: purple[200],
+    },
+    error: {
+      main: yellow[200],
     },
   },
 });
@@ -102,8 +121,15 @@ const AppToolBar = () => {
     setOpen(false);
   };
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static">
+    <Box sx={{ flexGrow: 1, bgcolor: "secondary.main", height: "100vh" }}>
+      <AppBar
+        position="static"
+        sx={{
+          background:
+            `linear-gradient(to top right, ${colorBarStart} 30%, ` +
+            `${colorBarEnd} 70%)`,
+        }}
+      >
         <Toolbar>
           <IconButton
             size="large"
@@ -114,7 +140,7 @@ const AppToolBar = () => {
           >
             <LogoIcon sx={{ fontSize: 40 }} />
           </IconButton>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h5" component="div" sx={{ flexGrow: 1 }}>
             AAVE LEVERAGED SWAP
           </Typography>
           <WalletMenu

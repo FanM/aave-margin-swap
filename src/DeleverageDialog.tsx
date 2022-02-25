@@ -64,7 +64,10 @@ const CollateralPane = (props: AssetPaneProps) => {
   const classes = useStyles();
 
   return (
-    <TableContainer component={Paper}>
+    <TableContainer
+      component={Paper}
+      sx={{ bgcolor: "secondary.dark", elevation: 5 }}
+    >
       <Table sx={{ minWidth: 350 }} aria-label="simple table">
         <TableHead>
           <TableRow>
@@ -125,8 +128,10 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
 }) => {
   const [dataProvider, setDataProvider] = React.useState<Contract>();
   const [priceOracle, setPriceOracle] = React.useState<Contract>();
-  const [collateralReducedAmounts, setCollateralReducedAmounts] =
-    React.useState<Array<BigNumber>>();
+  const [
+    collateralReducedAmounts,
+    setCollateralReducedAmounts,
+  ] = React.useState<Array<BigNumber>>();
   const [approvalSteps, setApprovalSteps] = React.useState<ApprovalStep[]>();
   const [targetTokenInfo, setTargetTokenInfo] = React.useState<TokenInfo>();
   const [targetTokenAmount, setTargetTokenAmount] = React.useState<BigNumber>(
@@ -185,8 +190,8 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
               payFeeByCollateral
             )
             .call({ from: account });
-        } catch (e: any) {
-          setErrorMessage(e.message);
+        } catch (e) {
+          setErrorMessage((e as Error).message);
           return;
         } finally {
           setLoading(false);
@@ -353,8 +358,11 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
 
     if (dataProvider) {
       const steps: ApprovalStep[] = [];
-      const [assetInfos, amounts, assetSymbols] =
-        await buildToBeReducedCollaterals();
+      const [
+        assetInfos,
+        amounts,
+        assetSymbols,
+      ] = await buildToBeReducedCollaterals();
       for (let i = 0; i < assetInfos.length; i++) {
         const addresses: TokenAddresses = await dataProvider.methods
           .getReserveTokensAddresses(assetInfos[i].tokenAddress)
@@ -456,7 +464,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
                   />
                 </Grid>
                 <Grid item xs={12}>
-                  <Typography gutterBottom>
+                  <Typography color="warning.light" gutterBottom>
                     Estimated Fees:{" "}
                     {loading ? (
                       <CircularProgress size={15} />
@@ -470,7 +478,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
                           : "--"}
                       </strong>
                     )}{" "}
-                    ether{" "}
+                    ETH{" "}
                     {!loading && fee && fee.length > 1 && (
                       <span>
                         (
@@ -485,7 +493,7 @@ const DeleverageDialog: React.FC<DeleverageDialogProps> = ({
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={5}>
-                  <Typography gutterBottom>
+                  <Typography color="warning.light" gutterBottom>
                     New Health Factor:{" "}
                     {loading ? (
                       <CircularProgress size={10} />

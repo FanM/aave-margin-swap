@@ -6,13 +6,14 @@ import CloseIcon from "@mui/icons-material/Close";
 
 export const BootstrapDialog = styled(Dialog)(({ theme }) => ({
   "& .MuiDialogContent-root": {
-    marginLeft: theme.spacing(2),
-    marginRight: theme.spacing(2),
-    padding: theme.spacing(2),
+    paddingLeft: theme.spacing(4),
+    paddingRight: theme.spacing(4),
     height: "70vh",
+    backgroundColor: theme.palette.secondary.light,
   },
   "& .MuiDialogActions-root": {
     padding: theme.spacing(1),
+    backgroundColor: theme.palette.secondary.light,
   },
 }));
 
@@ -26,7 +27,7 @@ export const BootstrapDialogTitle = (props: DialogTitleProps) => {
   const { children, onClose, ...other } = props;
 
   return (
-    <DialogTitle sx={{ m: 0, p: 2 }} {...other}>
+    <DialogTitle sx={{ m: 0, p: 2, bgcolor: "secondary.light" }} {...other}>
       {children}
       {onClose ? (
         <IconButton

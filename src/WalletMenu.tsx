@@ -111,7 +111,7 @@ const WalletMenu: React.FC<WalletMenuProps> = ({
                 src="/images/matic-token.png"
               />
             }
-            color="primary"
+            color="warning"
           >
             <Typography variant="body2" noWrap>
               Connect Wallet

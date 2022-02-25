@@ -56,10 +56,12 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   const [approvalSteps, setApprovalSteps] = React.useState<ApprovalStep[]>();
   // token address to AssetPosition
   const [assetMap, setAssetMap] = React.useState<Map<string, AssetPosition>>();
-  const [collateralAssets, setCollateralAssets] =
-    React.useState<AssetPosition[]>();
-  const [borrowableAssets, setBorrowableAssets] =
-    React.useState<AssetPosition[]>();
+  const [collateralAssets, setCollateralAssets] = React.useState<
+    AssetPosition[]
+  >();
+  const [borrowableAssets, setBorrowableAssets] = React.useState<
+    AssetPosition[]
+  >();
   const [targetToken, setTargetToken] = React.useState<TokenInfo>();
   const [pairToken, setPairToken] = React.useState<TokenInfo>();
   const [slippage, setSlippage] = React.useState<number>(2);
@@ -68,8 +70,9 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   );
   const [payFeeByCollateral, setPayFeeByCollateral] = React.useState(true);
   const [useVariableRate, setUseVariableRate] = React.useState(true);
-  const [maxTargetTokenAmount, setMaxTargetTokenAmount] =
-    React.useState<number>();
+  const [maxTargetTokenAmount, setMaxTargetTokenAmount] = React.useState<
+    number
+  >();
   const [fee, setFee] = React.useState<BigNumber[]>();
   const [healthFactor, setHealthFactor] = React.useState<number>();
   const [errorMessage, setErrorMessage] = React.useState<string>();
@@ -118,8 +121,8 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
               payFeeByCollateral
             )
             .call({ from: account });
-        } catch (e: any) {
-          setErrorMessage(e.message);
+        } catch (e) {
+          setErrorMessage((e as Error).message);
           return;
         } finally {
           setLoading(false);
@@ -226,9 +229,8 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
               ? addresses.variableDebtTokenAddress
               : addresses.stableDebtTokenAddress
           );
-          const targetTokenSymbol = assetMap.get(
-            targetToken.tokenAddress
-          )!.symbol;
+          const targetTokenSymbol = assetMap.get(targetToken.tokenAddress)!
+            .symbol;
           const step: ApprovalStep = {
             label: `Approve Delegation (${targetTokenSymbol})`,
             description: `Approve contract to borrow ${Number(
@@ -394,7 +396,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
                   />
                 </Grid>
                 <Grid item xs={12}>
-                  <Typography gutterBottom>
+                  <Typography color="warning.light" gutterBottom>
                     Estimated Fees:{" "}
                     {loading ? (
                       <CircularProgress size={15} />
@@ -408,7 +410,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
                           : "--"}
                       </strong>
                     )}{" "}
-                    ether{" "}
+                    ETH{" "}
                     {!loading && fee && fee.length > 1 && (
                       <span>
                         (
@@ -423,7 +425,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={5}>
-                  <Typography gutterBottom>
+                  <Typography color="warning.light" gutterBottom>
                     New Health Factor:{" "}
                     {loading ? (
                       <CircularProgress size={10} />
