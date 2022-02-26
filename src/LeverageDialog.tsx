@@ -330,7 +330,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           id="customized-dialog-title"
           onClose={handleClose}
         >
-          CREATE A LEVERAGE POSITION
+          CREATE A LEVERAGED POSITION
         </BootstrapDialogTitle>
         <SwipeableViews index={step}>
           <div key={"leverage-prepare-swap"}>
