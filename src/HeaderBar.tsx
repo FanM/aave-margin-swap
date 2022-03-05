@@ -121,7 +121,7 @@ const AppToolBar = () => {
     setOpen(false);
   };
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: "secondary.main", height: "100vh" }}>
+    <Box sx={{ flexGrow: 1, bgcolor: "secondary.main", minHeight: "100vh" }}>
       <AppBar
         position="static"
         sx={{
