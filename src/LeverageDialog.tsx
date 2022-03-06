@@ -9,9 +9,6 @@ import Grid from "@mui/material/Grid";
 import Button from "@mui/material/Button";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
-import Typography from "@mui/material/Typography";
-import LoadingButton from "@mui/lab/LoadingButton";
-import CircularProgress from "@mui/material/CircularProgress";
 import SwipeableViews from "react-swipeable-views";
 
 import PriceOracleContract from "./contracts/IPriceOracle.sol/IPriceOracleGetter.json";
@@ -22,8 +19,6 @@ import { SupportedNetwork, envObj } from "./env";
 import { AssetPosition, TokenInfo, TokenAddresses, SwapVars } from "./types";
 import {
   TOKEN_FIXED_PRECISION,
-  HEALTH_FACTOR_FIXED_PRECISION,
-  NATIVE_TOKEN_SYMBOL,
   PAY_BY_ETHER_SKEW,
   getNativeETHAmount,
 } from "./utils";
@@ -32,7 +27,9 @@ import TokenSelect from "./TokenSelect";
 import SlippageSelect, { SLIPPAGE_BASE_UINT } from "./SlippageSelect";
 import TokenValueSlider from "./TokenValueSlider";
 import RadioButtonsGroup from "./RadioButton";
-import ApprovalStepper, { ApprovalStep } from "./ApprovalStepper";
+import { ApprovalStep } from "./ApprovalStepper";
+import SubmitSwipeView from "./SubmitSwipeView";
+import FeeHealthFactorDisplay from "./FeeHealthFactorDisplay";
 
 const MAX_TOKEN_AMOUNT_DECIMALS = 10 ** TOKEN_FIXED_PRECISION;
 
@@ -79,6 +76,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   const [open, setOpen] = React.useState(false);
   const [step, setStep] = React.useState(0);
   const [readyToSwap, setReadyToSwap] = React.useState(false);
+  const [swapSucceeded, setSwapSucceeded] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
 
   const getTokenInfo: (t: string) => Promise<TokenInfo> = React.useCallback(
@@ -165,6 +163,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
         .send({ from: account })
+        .then(() => setSwapSucceeded(true))
         .catch((e: any) => setErrorMessage(e.message))
         .finally(() => {
           setLoading(false);
@@ -180,6 +179,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
           SLIPPAGE_BASE_UINT.mul(slippage)
         )
         .send({ from: account, value: fee!.length === 1 ? fee![0] : fee![1] })
+        .then(() => setSwapSucceeded(true))
         .catch((e: any) => setErrorMessage(e.message))
         .finally(() => {
           setLoading(false);
@@ -317,7 +317,7 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
   return (
     <div>
       <Button variant="outlined" disabled={disabled} onClick={handleClickOpen}>
-        create a leverage position
+        create a leveraged position
       </Button>
       <BootstrapDialog
         onClose={handleClose}
@@ -395,59 +395,13 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
                     selectSlippage={setSlippage}
                   />
                 </Grid>
-                <Grid item xs={12}>
-                  <Typography color="warning.light" gutterBottom>
-                    Estimated Fees:{" "}
-                    {loading ? (
-                      <CircularProgress size={15} />
-                    ) : (
-                      <strong>
-                        {" "}
-                        {fee
-                          ? Number(formatEther(fee[0])).toFixed(
-                              TOKEN_FIXED_PRECISION
-                            )
-                          : "--"}
-                      </strong>
-                    )}{" "}
-                    ETH{" "}
-                    {!loading && fee && fee.length > 1 && (
-                      <span>
-                        (
-                        <strong>
-                          {Number(formatEther(fee[1])).toFixed(
-                            TOKEN_FIXED_PRECISION
-                          )}{" "}
-                        </strong>
-                        {NATIVE_TOKEN_SYMBOL})
-                      </span>
-                    )}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={5}>
-                  <Typography color="warning.light" gutterBottom>
-                    New Health Factor:{" "}
-                    {loading ? (
-                      <CircularProgress size={10} />
-                    ) : (
-                      <strong>
-                        {healthFactor
-                          ? `${
-                              healthFactor <= 1e7
-                                ? healthFactor.toFixed(
-                                    HEALTH_FACTOR_FIXED_PRECISION
-                                  )
-                                : "--"
-                            }`
-                          : "--"}
-                      </strong>
-                    )}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={7}>
-                  <Typography color="error" gutterBottom>
-                    {errorMessage}
-                  </Typography>
+                <Grid item>
+                  <FeeHealthFactorDisplay
+                    fees={fee}
+                    healthFactor={healthFactor}
+                    errorMessage={errorMessage}
+                    loading={loading}
+                  />
                 </Grid>
               </Grid>
             </DialogContent>
@@ -461,29 +415,17 @@ const LeverageDialog: React.FC<LeverageDialogProps> = ({
               </Button>
             </DialogActions>
           </div>
-          <div key={"leverage-swap"}>
-            <DialogContent dividers>
-              {approvalSteps && (
-                <ApprovalStepper
-                  steps={approvalSteps}
-                  finalizeApproval={finalizeApproval}
-                />
-              )}
-              <Typography color="error" gutterBottom>
-                {errorMessage}
-              </Typography>
-            </DialogContent>
-            <DialogActions>
-              <LoadingButton
-                disabled={!readyToSwap}
-                loading={loading}
-                onClick={handleLeveragedSwap}
-              >
-                sumbit
-              </LoadingButton>
-              <Button onClick={() => setStep(0)}>back</Button>
-            </DialogActions>
-          </div>
+          <SubmitSwipeView
+            keyStr="leverage-swap"
+            approvalSteps={approvalSteps}
+            errorMessage={errorMessage}
+            loading={loading}
+            readyToSwap={readyToSwap}
+            swapSucceeded={swapSucceeded}
+            handleSubmit={handleLeveragedSwap}
+            finalizeApproval={finalizeApproval}
+            setStep={setStep}
+          />
         </SwipeableViews>
       </BootstrapDialog>
     </div>

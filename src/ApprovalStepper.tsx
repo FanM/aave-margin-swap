@@ -27,20 +27,20 @@ const ApprovalStepper: React.FC<ApprovalStepperProps> = ({
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    const getActiveStep = async () => {
-      let i = 0;
-      for (i = 0; i < steps.length; i++) {
+    const checkAllStepsApproved = async () => {
+      let i = activeStep;
+      for (; i < steps.length; i++) {
         const step = steps[i];
         if (!(await step.checkAllowance())) {
-          setActiveStep(i);
+          if (activeStep !== i) setActiveStep(i);
           return;
         }
       }
-      setActiveStep(i);
+      if (activeStep !== i) setActiveStep(i);
       finalizeApproval();
     };
-    getActiveStep();
-  }, [steps, finalizeApproval]);
+    checkAllStepsApproved();
+  }, [activeStep, steps, finalizeApproval]);
 
   const handleNext = () => {
     const step = steps[activeStep];

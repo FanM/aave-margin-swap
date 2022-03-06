@@ -116,10 +116,10 @@ const DebtPane: React.FC<DebtPaneProps> = ({
             <TableCell className={classes.tableHeader}>
               <strong>LOAN</strong>
             </TableCell>
-            <TableCell className={classes.tableHeader} align="right">
+            <TableCell className={classes.tableHeader} align="center">
               <strong>STABLE DEBT</strong>
             </TableCell>
-            <TableCell className={classes.tableHeader} align="right">
+            <TableCell className={classes.tableHeader} align="center">
               <strong>VARIABLE DEBT</strong>
             </TableCell>
           </TableRow>

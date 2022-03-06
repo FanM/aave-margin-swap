@@ -40,10 +40,10 @@ const TokenValueSlider: React.FC<TokenValueSliderProps> = ({
 
   const updateTokenValue = (value: number | number[] | string | string[]) => {
     if (typeof value === "number" || typeof value === "string") {
-      const valueStr = value.toString();
+      let valueStr = value.toString();
       if (valueStr.indexOf("e") !== -1) {
-        // don't process exponential format
-        return;
+        // process exponential format
+        valueStr = (value as number).toFixed(WEI_DECIMALS);
       }
       const pos = valueStr.indexOf(".");
       let tokenValue: string;
